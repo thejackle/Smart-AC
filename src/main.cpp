@@ -9,7 +9,6 @@
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
 
-//this is a test comment for github
 
 //Global variables
     double Global_TempCurrent = 20.00;

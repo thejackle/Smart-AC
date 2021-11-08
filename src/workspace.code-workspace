@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"name": "Smart AC",
+			"path": ".."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"bitset": "cpp",
+			"random": "cpp",
+			"future": "cpp"
+		}
+	}
+}

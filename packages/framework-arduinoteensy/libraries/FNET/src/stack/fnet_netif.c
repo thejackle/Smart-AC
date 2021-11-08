@@ -129,7 +129,7 @@ fnet_netif_desc_t fnet_netif_get_by_name( const fnet_char_t *name )
 /************************************************************************
 * DESCRIPTION: This function returns pointer to id-th interafce according
 *              its index (from zero).
-*              It returns NULL if id-th interface is not available.
+*              It returns FNET_NULL if id-th interface is not available.
 *************************************************************************/
 fnet_netif_desc_t fnet_netif_get_by_number( fnet_index_t n )
 {
@@ -541,6 +541,9 @@ void _fnet_netif_set_ip4_addr(fnet_netif_t *netif, fnet_ip4_addr_t ipaddr, fnet_
             netif->ip4_addr.subnet = netif->ip4_addr.address & netif->ip4_addr.subnetmask; /* network and subnet address*/
             netif->ip4_addr.subnetbroadcast = netif->ip4_addr.address | (~netif->ip4_addr.subnetmask);     /* subnet broadcast address*/
         }
+
+        /* Seed pseudo-random generator */
+        fnet_srand((fnet_uint32_t)ipaddr);
 
         if(netif->netif_api->netif_change_addr_notify)
         {
@@ -1239,6 +1242,66 @@ fnet_netif_desc_t _fnet_netif_get_by_scope_id( fnet_scope_id_t scope_id )
 
     return result;
 }
+
+/************************************************************************
+* DESCRIPTION: Gets the specified network interfaces adjustable timer value
+*************************************************************************/
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+fnet_uint32_t fnet_netif_get_adjustable_timer(fnet_netif_desc_t netif_desc )
+{
+    _fnet_stack_mutex_lock();
+    fnet_uint32_t timer = _fnet_netif_get_adjustable_timer (netif_desc);
+    _fnet_stack_mutex_unlock();
+    return timer;
+}
+/* Private */
+fnet_uint32_t _fnet_netif_get_adjustable_timer(fnet_netif_desc_t netif_desc )
+{
+    fnet_netif_t *netif = (fnet_netif_t *)netif_desc;
+
+    if(netif && (netif->netif_api->netif_get_adjustable_timer))
+    {
+        return netif->netif_api->netif_get_adjustable_timer(netif);
+    }
+    return 0;
+}
+
+void fnet_netif_set_timestamp(fnet_netif_desc_t netif_desc, fnet_int32_t timestamp)
+{
+    _fnet_stack_mutex_lock();
+    _fnet_netif_set_timestamp (netif_desc, timestamp);
+    _fnet_stack_mutex_unlock();
+}
+/* Private */
+void _fnet_netif_set_timestamp(fnet_netif_desc_t netif_desc, fnet_int32_t timestamp)
+{
+    fnet_netif_t *netif = (fnet_netif_t *)netif_desc;
+
+    if(netif && (netif->netif_api->netif_set_timestamp))
+    {
+        netif->netif_api->netif_set_timestamp(netif, timestamp);
+    }
+}
+
+fnet_int32_t fnet_netif_get_timestamp(fnet_netif_desc_t netif_desc)
+{
+    _fnet_stack_mutex_lock();
+    fnet_int32_t timestamp = _fnet_netif_get_timestamp (netif_desc);
+    _fnet_stack_mutex_unlock();
+    return timestamp;
+}
+/* Private */
+fnet_int32_t _fnet_netif_get_timestamp(fnet_netif_desc_t netif_desc)
+{
+    fnet_netif_t *netif = (fnet_netif_t *)netif_desc;
+
+    if(netif && (netif->netif_api->netif_get_timestamp))
+    {
+        return netif->netif_api->netif_get_timestamp(netif);
+    }
+    return 0;
+}
+#endif /*FNET_CFG_CPU_ADJUSTABLE_TIMER*/
 
 
 /************************************************************************

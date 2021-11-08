@@ -18,6 +18,42 @@
 #define FNET_CFG_BENCH_SRV (1)  //Benchmark
 #define FNET_CFG_BENCH_SRV_BUFFER_SIZE          (128*1024)
 
+//#define FNET_CFG_SOCKET_CALLBACK_ON_RX (1)
+
+
+//#define FNET_CFG_DEBUG              (1)
+//#define FNET_CFG_DEBUG_AUTOIP       (1)
+//#define FNET_CFG_DEBUG_TIMER        (1)
+//#define FNET_CFG_DEBUG_HTTP         (1)
+//#define FNET_CFG_DEBUG_DHCP_CLN     (1)
+//#define FNET_CFG_DEBUG_DHCP_SRV     (1)
+//#define FNET_CFG_DEBUG_ARP          (1)
+//#define FNET_CFG_DEBUG_MEMPOOL      (1)
+//#define FNET_CFG_DEBUG_TFTP_CLN     (1)
+//#define FNET_CFG_DEBUG_TFTP_SRV     (1)
+//#define FNET_CFG_DEBUG_STACK        (1)
+//#define FNET_CFG_DEBUG_TELNET       (1)
+//#define FNET_CFG_DEBUG_SHELL        (1)
+//#define FNET_CFG_DEBUG_DNS          (1)
+//#define FNET_CFG_DEBUG_DNS          (1)
+//#define FNET_CFG_DEBUG_AZURE        (1)
+//#define FNET_CFG_DEBUG_IP6          (1)
+//#define FNET_CFG_DEBUG_LINK         (1)
+//#define FNET_CFG_DEBUG_LLMNR        (1)
+//#define FNET_CFG_DEBUG_MDNS         (1)
+//#define FNET_CFG_DEBUG_PING         (1)
+//#define FNET_CFG_DEBUG_SNTP         (1)
+//#define FNET_CFG_DEBUG_QCA          (1)
+//#define FNET_CFG_DEBUG_ENET         (1)
+//#define FNET_CFG_DEBUG_TRACE        (1)
+//#define FNET_CFG_DEBUG_TRACE_IP4    (1)
+//#define FNET_CFG_DEBUG_TRACE_ICMP4  (1)
+//#define FNET_CFG_DEBUG_TRACE_IGMP   (1)
+//#define FNET_CFG_DEBUG_TRACE_ETH    (1)
+//#define FNET_CFG_DEBUG_TRACE_ARP    (1)
+//#define FNET_CFG_DEBUG_TRACE_UDP    (1)
+//#define FNET_CFG_DEBUG_TRACE_TCP    (1)
+
 /**************************************************************************/ /*!
  * @brief General return codes, used by most of API functions.
  ******************************************************************************/
@@ -294,7 +330,16 @@ fnet_return_t fnet_cpu_serial_init(fnet_index_t port_number, fnet_uint32_t baud_
 * IPv4 and/or IPv6 protocol support.
 ******************************************************************************/
 #define FNET_CFG_IP4                (1)
-#define FNET_CFG_IP6                (1)
+//#define FNET_CFG_IP6                (1)
+
+/**************************************************************************/ /*!
+ * @def      FNET_CFG_IP_MAX_PACKET
+ * @brief    Maximum size for the IPv4 and IPv6 datagram,
+ *           the largest allowed value is 65535. @n
+ *           Default value is 10 KB.
+ * @showinitializer
+ ******************************************************************************/
+#define FNET_CFG_IP_MAX_PACKET              (32U*1024U)
 
 /*****************************************************************************
 * TCP protocol support.
@@ -385,6 +430,33 @@ fnet_return_t fnet_cpu_serial_init(fnet_index_t port_number, fnet_uint32_t baud_
 * Link-Detection service support.
 ******************************************************************************/
 #define FNET_CFG_LINK                       (1)
+
+/**************************************************************************/ /*!
+ * @def      FNET_CFG_TLS
+ * @brief    TLS Library support:
+ *               - @c 1..n = is enabled (mbedTLS). Its value defines
+ *                      the maximum number of the TLS contexts that can be initialized
+ *                      simultaneously, using fnet_tls_init().
+ *               - @b @c 0 = is disabled (Default value).
+ * @showinitializer
+ ******************************************************************************/
+#ifndef FNET_CFG_TLS
+    #define FNET_CFG_TLS                (2)
+#endif
+
+/**************************************************************************
+* Ethernet Adjustable Timer
+******************************************************************************/
+//#ifndef FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+//    #define FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER       (1)
+//#endif
+
+/**************************************************************************
+* Ethernet Enhanced Buffer Descriptor
+******************************************************************************/
+//#ifndef FNET_CFG_CPU_ETH_ENHANCED_BUFFER_DESCRIPTOR
+//    #define FNET_CFG_CPU_ETH_ENHANCED_BUFFER_DESCRIPTOR     (1)
+//#endif
 
 /**************************************************************************/ /*!
  * @def      FNET_CFG_TIMER_ALT

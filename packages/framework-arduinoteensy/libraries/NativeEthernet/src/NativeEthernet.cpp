@@ -36,7 +36,7 @@ DMAMEM uint8_t** EthernetClass::socket_buf_transmit;
 DMAMEM uint16_t* EthernetClass::socket_buf_len;
 DMAMEM uint16_t* EthernetClass::socket_port;
 DMAMEM uint8_t** EthernetClass::socket_addr;
-fnet_socket_t* EthernetClass::socket_ptr;
+volatile fnet_socket_t* EthernetClass::socket_ptr;
 
 void EthernetClass::setStackHeap(uint8_t* _stack_heap_ptr, size_t _stack_heap_size){
     if(stack_heap_ptr != NULL) return;
@@ -56,7 +56,7 @@ void EthernetClass::setSocketSize(size_t _socket_size){
 
 void EthernetClass::setSocketNum(uint8_t _socket_num){
     if(socket_num != 0) return;
-    if(socket_num > FNET_CFG_SOCKET_MAX) socket_num = FNET_CFG_SOCKET_MAX;
+    if(_socket_num > FNET_CFG_SOCKET_MAX) socket_num = FNET_CFG_SOCKET_MAX;
     else socket_num = _socket_num;
 }
 
@@ -86,11 +86,19 @@ int EthernetClass::begin(uint8_t *mac, unsigned long timeout, unsigned long resp
         socket_ptr = new fnet_socket_t[socket_num];
         socket_buf_index = new uint16_t[socket_num];
         EthernetServer::server_port = new uint16_t[socket_num];
+#if FNET_CFG_TLS
+        EthernetServer::tls_socket_ptr = new fnet_tls_socket_t[socket_num];
+        EthernetServer::_tls = new bool[socket_num];
+#endif
         
         for(uint8_t i = 0; i < socket_num; i++){
             socket_buf_transmit[i] = new uint8_t[socket_size];
             socket_buf_receive[i] = new uint8_t[socket_size];
+            socket_addr[i] = new uint8_t[4];
             socket_ptr[i] = nullptr;
+#if FNET_CFG_TLS
+            EthernetServer::_tls[i] = false;
+#endif
         }
         
         init_params.netheap_ptr = stack_heap_ptr;
@@ -149,13 +157,13 @@ int EthernetClass::begin(uint8_t *mac, unsigned long timeout, unsigned long resp
     
     while(!fnet_dhcp_cln_is_enabled(fnet_dhcp_cln_get_by_netif(fnet_netif_get_default()))){
         //Wait for dhcp initialization
-        if(millis() >= startMillis + timeout) return false;
+        if(millis() - startMillis >= timeout) return false;
     }
     
     struct fnet_dhcp_cln_options current_options;
     do {//Wait for IP Address
         fnet_dhcp_cln_get_options(fnet_dhcp_cln_get_by_netif(fnet_netif_get_default()), &current_options);
-        if(millis() >= startMillis + timeout) return false;
+        if(millis() - startMillis >= timeout) return false;
     } while (!current_options.ip_address.s_addr);
     
     return true;
@@ -210,11 +218,19 @@ void EthernetClass::begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress g
         socket_ptr = new fnet_socket_t[socket_num];
         socket_buf_index = new uint16_t[socket_num];
         EthernetServer::server_port = new uint16_t[socket_num];
+#if FNET_CFG_TLS
+        EthernetServer::tls_socket_ptr = new fnet_tls_socket_t[socket_num];
+        EthernetServer::_tls = new bool[socket_num];
+#endif
         
         for(uint8_t i = 0; i < socket_num; i++){
             socket_buf_transmit[i] = new uint8_t[socket_size];
             socket_buf_receive[i] = new uint8_t[socket_size];
+            socket_addr[i] = new uint8_t[4];
             socket_ptr[i] = nullptr;
+#if FNET_CFG_TLS
+            EthernetServer::_tls[i] = false;
+#endif
         }
         
         init_params.netheap_ptr = stack_heap_ptr;
@@ -266,17 +282,16 @@ void EthernetClass::begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress g
     }
     else{
 //        Serial.println("Error:TCP/IP stack already initialized.");
-        return;
+//        return;
     }
     
+    fnet_dhcp_cln_release(fnet_dhcp_cln_get_by_netif(fnet_netif_get_default()));
     fnet_netif_set_ip4_addr(fnet_netif_get_default(), ip, subnet);
     fnet_netif_set_ip4_gateway(fnet_netif_get_default(), gateway);
     fnet_netif_set_ip4_dns(fnet_netif_get_default(), dns);
     
     while(!link_status){
     }
-    
-    
 }
 
 void EthernetClass::init(uint8_t sspin)

@@ -1,1 +1,1 @@
-{"type": "tool", "name": "framework-arduinoteensy", "version": "1.153.0", "spec": {"owner": "platformio", "id": 8084, "name": "framework-arduinoteensy", "requirements": null, "url": null}}
+{"type": "tool", "name": "framework-arduinoteensy", "version": "1.155.0", "spec": {"owner": "platformio", "id": 8084, "name": "framework-arduinoteensy", "requirements": null, "url": null}}

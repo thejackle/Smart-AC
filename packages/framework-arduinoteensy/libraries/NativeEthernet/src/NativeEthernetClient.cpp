@@ -42,6 +42,9 @@ int EthernetClient::connect(const char * host, uint16_t port)
 	}
 	dns.begin(Ethernet.dnsServerIP());
 	if (!dns.getHostByName(host, remote_addr)) return 0; // TODO: use _timeout
+#if FNET_CFG_TLS
+    host_name = host;
+#endif
 	return connect(remote_addr, port);
 }
 
@@ -58,31 +61,20 @@ int EthernetClient::connect(IPAddress ip, uint16_t port)
 		}
 		sockindex = Ethernet.socket_num;
 	}
-#if defined(ESP8266) || defined(ESP32)
-	if (ip == IPAddress((uint32_t)0) || ip == IPAddress(0xFFFFFFFFul)) return 0;
-#else
 	if (ip == IPAddress(0ul) || ip == IPAddress(0xFFFFFFFFul)) return 0;
-#endif
-	sockindex = Ethernet.socketBegin(SnMR::TCP, 8888);
+//    Using a port number of 0 causes the service provider to
+//    assign a unique ephemeral port number to the socket with
+//    a value between 49152 to 65535 (sugested by IANA)
+	sockindex = Ethernet.socketBegin(SnMR::TCP, 0);
 	if (sockindex >= Ethernet.socket_num) return 0;
 	Ethernet.socketConnect(sockindex, rawIPAddress(ip), port);
     _port = port;
 	uint32_t start = millis();
+    _connectIP = ip;
+    _connectPort = port;
+    if(_connectPoll) return 1;
 	while (1) {
-		uint8_t stat = Ethernet.socketStatus(sockindex);
-//        Serial.print("Connect: ");
-//        Serial.println(stat, HEX);
-//        Serial.print("Sock Index: ");
-//        Serial.println(sockindex);
-        if (stat == SnSR::ESTABLISHED || stat == SnSR::CLOSE_WAIT) {
-            _remoteIP = ip;
-            _remotePort = port;
-            return 1;
-        }
-        if (stat == SnSR::CLOSED) {
-            Ethernet.socketClose(sockindex);
-            return 0;
-        }
+        if(connectPoll()) return 1;
 		if (millis() - start > _timeout) break;
 		delay(1);
 	}
@@ -90,6 +82,94 @@ int EthernetClient::connect(IPAddress ip, uint16_t port)
 	sockindex = Ethernet.socket_num;
 	return 0;
 }
+
+int EthernetClient::connectPoll(){
+    uint8_t stat = Ethernet.socketStatus(sockindex);
+//    if(stat != 0x13){
+//        Serial.print("Connect: ");
+//        Serial.println(stat, HEX);
+//        Serial.print("Sock Index: ");
+//        Serial.println(sockindex);
+//    }
+    if (stat == SnSR::ESTABLISHED || stat == SnSR::CLOSE_WAIT) {
+        _remoteIP = _connectIP;
+        _remotePort = _connectPort;
+#if FNET_CFG_TLS
+        if(_tls_en && tls_desc != 0){
+//                Serial.println("TLS socket create");
+            fnet_tls_socket_t tls_socket = fnet_tls_socket(tls_desc, Ethernet.socket_ptr[sockindex]);
+            if(tls_socket == FNET_NULL){
+                Serial.println("Failed to create TLS client socket");
+                EthernetServer::_tls[sockindex] = false;
+            }
+            else{
+//                    Serial.println("TLS socket made");
+                EthernetServer::_tls[sockindex] = true;
+                EthernetServer::tls_socket_ptr[sockindex] = tls_socket;
+                fnet_tls_socket_set_hostname(tls_socket, host_name);
+                if(fnet_tls_socket_connect(tls_socket) == FNET_ERR){
+                    Serial.println("TLS handshake failed");
+                    if(EthernetServer::_tls[sockindex]){
+                        fnet_tls_socket_close(EthernetServer::tls_socket_ptr[sockindex]);
+                    }
+                    EthernetServer::_tls[sockindex] = false;
+                    fnet_tls_release(tls_desc);
+                    tls_desc = 0;
+                }
+            }
+        }
+#endif
+        return 1;
+    }
+    if (stat == SnSR::CLOSED) {
+        Ethernet.socketClose(sockindex);
+        return 0;
+    }
+    return 0;
+}
+
+#if FNET_CFG_TLS
+int EthernetClient::connect(const char * host, uint16_t port, bool tls)
+{
+    _tls_en = true;
+    if(_tls_en && tls_desc != 0){
+        EthernetServer::_tls[sockindex] = true;
+    }
+    else if(_tls_en){
+        tls_desc = fnet_tls_init(FNET_TLS_ROLE_CLIENT);
+        if(tls_desc == 0){
+            Serial.println("Failed to initialize TLS Client");
+            EthernetServer::_tls[sockindex] = false;
+            _tls_en = false;
+        }
+        else{
+//            Serial.println("TLS Client made");
+            if(fnet_tls_set_ca_certificate(tls_desc, ca_certificate_buffer, ca_certificate_buffer_size) == FNET_ERR)
+            {
+                Serial.println("TLS ca certificate error.");
+                fnet_tls_release(tls_desc);
+                EthernetServer::_tls[sockindex] = false;
+                _tls_en = false;
+            }
+            else{
+//                Serial.println("TLS socket true");
+                _tls_en = true;
+            }
+        }
+    }
+    else{
+//        _tls_en = false;
+    }
+    return connect(host, port);
+}
+
+int EthernetClient::connect(IPAddress ip, uint16_t port, bool tls)
+{
+    //Probably not supported, maybe
+    _tls_en = false;
+    return connect(ip, port);
+}
+#endif
 
 int EthernetClient::availableForWrite(void)
 {
@@ -104,8 +184,8 @@ size_t EthernetClient::write(uint8_t b)
 
 size_t EthernetClient::write(const uint8_t *buf, size_t size)
 {
+    if (sockindex >= Ethernet.socket_num) return 0;
     size_t ret = Ethernet.socketSend(sockindex, buf, size);
-	if (sockindex >= Ethernet.socket_num) return 0;
 	if (ret) return ret;
 	setWriteError();
 	return 0;
@@ -114,23 +194,50 @@ size_t EthernetClient::write(const uint8_t *buf, size_t size)
 int EthernetClient::available()
 {
 	if (sockindex >= Ethernet.socket_num) return 0;
+    if (Ethernet.socket_ptr[sockindex] == nullptr) return 0;
 	struct fnet_sockaddr _from;
     fnet_size_t fromlen = sizeof(_from);
     
     int ret = 0;
     if(_remaining == 0) {
+#if FNET_CFG_TLS
+        if(EthernetServer::_tls[sockindex]){
+            fnet_socket_recvfrom(Ethernet.socket_ptr[sockindex], Ethernet.socket_buf_receive[sockindex], Ethernet.socket_size, MSG_PEEK, &_from, &fromlen);
+            ret = fnet_tls_socket_recv(EthernetServer::tls_socket_ptr[sockindex], Ethernet.socket_buf_receive[sockindex], Ethernet.socket_size);
+            Ethernet.socket_buf_index[sockindex] = 0;
+        }
+        else{
+            ret = fnet_socket_recvfrom(Ethernet.socket_ptr[sockindex], Ethernet.socket_buf_receive[sockindex], Ethernet.socket_size, 0, &_from, &fromlen);
+            Ethernet.socket_buf_index[sockindex] = 0;
+        }
+#else
         ret = fnet_socket_recvfrom(Ethernet.socket_ptr[sockindex], Ethernet.socket_buf_receive[sockindex], Ethernet.socket_size, 0, &_from, &fromlen);
         Ethernet.socket_buf_index[sockindex] = 0;
-    }
-    int8_t error_handler = fnet_error_get();
-    if(error_handler == -20){
-        return 0;
+#endif
     }
     if(ret == -1){
-//        Serial.print("RecvAvailableErr: ");
-//        Serial.send_now();
-//        Serial.println(error_handler);
-//        Serial.send_now();
+        uint8_t s = Ethernet.socketStatus(sockindex);
+        if (s == SnSR::CLOSE_WAIT || s == SnSR::CLOSED || s == SnSR::INIT) return 0;
+        int8_t error_handler = fnet_error_get();
+        if(error_handler == -20){
+//            Serial.print("RecvErr: ");
+//            Serial.send_now();
+//            Serial.print(error_handler);
+//            Serial.print("  Ret: ");
+//            Serial.print(ret);
+//            Serial.print("  Remaining: ");
+//            Serial.println(_remaining);
+//            stop();
+            return 0;
+        }
+        Serial.print("SockIndex: ");
+        Serial.print(sockindex, HEX);
+        Serial.print("  SockStatus: ");
+        Serial.print(s, HEX);
+        Serial.print("  ");
+        Serial.print("RecvErr: ");
+        Serial.send_now();
+        Serial.println(error_handler);
         _remaining = 0;
         return 0;
     }
@@ -139,18 +246,9 @@ int EthernetClient::available()
         _remoteIP = _from.sa_data;
         _remotePort = FNET_HTONS(_from.sa_port);
         _remaining = ret;
-//        Serial.print("Available: ");
-//        Serial.println(ret);
-//        Serial.send_now();
     }
     
     return _remaining;
-	// TODO: do the Wiznet chips automatically retransmit TCP ACK
-	// packets if they are lost by the network?  Someday this should
-	// be checked by a man-in-the-middle test which discards certain
-	// packets.  If ACKs aren't resent, we would need to check for
-	// returning 0 here and after a timeout do another Sock_RECV
-	// command to cause the Wiznet chip to resend the ACK packet.
 }
 
 int EthernetClient::read(uint8_t *buf, size_t size)
@@ -192,23 +290,17 @@ void EthernetClient::flush()
 void EthernetClient::stop()
 {
 	if (sockindex >= Ethernet.socket_num) return;
+    if (EthernetClass::socket_ptr[sockindex] == nullptr) return;
 
-	// attempt to close the connection gracefully (send a FIN to other side)
+	// attempt to close the connection gracefully (send a FIN to other side or disconnect if already closed)
 	Ethernet.socketDisconnect(sockindex);
-	unsigned long start = millis();
+    Ethernet.socketClose(sockindex);
+    sockindex = Ethernet.socket_num;
+    return; // exit the loop
+}
 
-	// wait up to a second for the connection to close
-	do {
-		if (Ethernet.socketStatus(sockindex) == SnSR::CLOSED) {
-			sockindex = Ethernet.socket_num;
-			return; // exit the loop
-		}
-		delay(1);
-	} while (millis() - start < _timeout);
-
-	// if it hasn't closed, close it forcefully
-	Ethernet.socketClose(sockindex);
-	sockindex = Ethernet.socket_num;
+void EthernetClient::close(){
+    Ethernet.socketDisconnect(sockindex); //Send FIN to other side, but keep connection open
 }
 
 uint8_t EthernetClient::connected()
@@ -233,5 +325,6 @@ bool EthernetClient::operator==(const EthernetClient& rhs)
 	if (sockindex != rhs.sockindex) return false;
 	if (sockindex >= Ethernet.socket_num) return false;
 	if (rhs.sockindex >= Ethernet.socket_num) return false;
+    getClientAddress();
 	return true;
 }

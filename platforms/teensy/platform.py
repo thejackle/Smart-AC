@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from platform import system
+import copy
+import platform
 
 from platformio.managers.platform import PlatformBase
 
@@ -28,9 +29,12 @@ class TeensyPlatform(PlatformBase):
             if del_toolchain in self.packages:
                 del self.packages[del_toolchain]
 
-        if "mbed" in variables.get("pioframework", []):
+        frameworks = variables.get("pioframework", [])
+        if "mbed" in frameworks:
             self.packages["toolchain-gccarmnoneeabi"][
-                'version'] = ">=1.60301.0,<1.80000.0"
+                "version"] = ">=1.60301.0,<1.80000.0"
+        elif "arduino" in frameworks and board_config.get("build.core", "") == "teensy4":
+            self.packages["tool-teensy"]["optional"] = False
 
         # configure J-LINK tool
         jlink_conds = [
@@ -66,12 +70,12 @@ class TeensyPlatform(PlatformBase):
         upload_protocols = board.manifest.get("upload", {}).get(
             "protocols", [])
         if "tools" not in debug:
-            debug['tools'] = {}
+            debug["tools"] = {}
 
-        if "jlink" in upload_protocols and "jlink" not in debug['tools']:
+        if "jlink" in upload_protocols and "jlink" not in debug["tools"]:
             assert debug.get("jlink_device"), (
                 "Missed J-Link Device ID for %s" % board.id)
-            debug['tools']['jlink'] = {
+            debug["tools"]["jlink"] = {
                 "server": {
                     "package": "tool-jlink",
                     "arguments": [
@@ -82,10 +86,23 @@ class TeensyPlatform(PlatformBase):
                         "-port", "2331"
                     ],
                     "executable": ("JLinkGDBServerCL.exe"
-                                   if system() == "Windows" else
+                                   if platform.system() == "Windows" else
                                    "JLinkGDBServer")
                 }
             }
 
-        board.manifest['debug'] = debug
+        board.manifest["debug"] = debug
         return board
+
+    def configure_debug_options(self, initial_debug_options, ide_data):
+        debug_options = copy.deepcopy(initial_debug_options)
+        adapter_speed = initial_debug_options.get("speed")
+        if adapter_speed:
+            server_options = debug_options.get("server") or {}
+            server_executable = server_options.get("executable", "").lower()
+            if "jlink" in server_executable:
+                debug_options["server"]["arguments"].extend(
+                    ["-speed", adapter_speed]
+                )
+
+        return debug_options

@@ -35,6 +35,8 @@
 
 #if (defined(CDC_STATUS_INTERFACE) && defined(CDC_DATA_INTERFACE)) || defined(USB_DISABLED)
 
+#if !defined(USB_DISABLED)
+
 // C language implementation
 #ifdef __cplusplus
 extern "C" {
@@ -71,17 +73,18 @@ class usb_serial_class : public Stream
 public:
 	constexpr usb_serial_class() {}
         void begin(long) {
-		//uint32_t millis_begin = systick_millis_count;
-		//disabled for now - causes more trouble than it solves?
-		//while (!(*this)) {
-			// wait up to 2.5 seconds for Arduino Serial Monitor
-			// Yes, this is a long time, but some Windows systems open
-			// the port very slowly.  This wait allows programs for
-			// Arduino Uno to "just work" (without forcing a reboot when
-			// the port is opened), and when no PC is connected the user's
-			// sketch still gets to run normally after this wait time.
-			//if ((uint32_t)(systick_millis_count - millis_begin) > 2500) break;
-		//}
+		uint32_t millis_begin = systick_millis_count;
+		while (!(*this)) {
+			uint32_t elapsed = systick_millis_count - millis_begin;
+			if (usb_configuration) {
+				// Wait up to 2 seconds for Arduino Serial Monitor
+				if (elapsed > 2000) break;
+			} else {
+				// But wait only 3/4 second if there is no sign the
+				// USB host has begun the USB enumeration process.
+				if (elapsed > 750) break;
+			}
+		}
 	}
         void end() { /* TODO: flush output and shut down USB port */ };
         virtual int available() { return usb_serial_available(); }
@@ -122,6 +125,46 @@ public:
 extern usb_serial_class Serial;
 extern void serialEvent(void);
 #endif // __cplusplus
+
+#else  // !defined(USB_DISABLED)
+
+// Allow Arduino programs using Serial to compile, but Serial will do nothing.
+#ifdef __cplusplus
+#include "Stream.h"
+class usb_serial_class : public Stream
+{
+public:
+    constexpr usb_serial_class() {}
+        void begin(long) { };
+        void end() { };
+        virtual int available() { return 0; }
+        virtual int read() { return -1; }
+        virtual int peek() { return -1; }
+        virtual void flush() { }
+        virtual void clear() { }
+        virtual size_t write(uint8_t c) { return 1; }
+        virtual size_t write(const uint8_t *buffer, size_t size) { return size; }
+    size_t write(unsigned long n) { return 1; }
+    size_t write(long n) { return 1; }
+    size_t write(unsigned int n) { return 1; }
+    size_t write(int n) { return 1; }
+    int availableForWrite() { return 0; }
+    using Print::write;
+        void send_now(void) { }
+        uint32_t baud(void) { return 0; }
+        uint8_t stopbits(void) { return 1; }
+        uint8_t paritytype(void) { return 0; }
+        uint8_t numbits(void) { return 8; }
+        uint8_t dtr(void) { return 1; }
+        uint8_t rts(void) { return 1; }
+        operator bool() { return true; }
+};
+
+extern usb_serial_class Serial;
+extern void serialEvent(void);
+#endif // __cplusplus
+
+#endif // !defined(USB_DISABLED)
 
 #endif // CDC_STATUS_INTERFACE && CDC_DATA_INTERFACE
 

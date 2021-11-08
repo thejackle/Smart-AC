@@ -37,7 +37,7 @@ SdFile root;
 // Wiz820+SD board: pin 4
 // Teensy 2.0: pin 0
 // Teensy++ 2.0: pin 20
-const int chipSelect = 4;
+const int chipSelect = 10;
 
 void setup()
 {
@@ -110,11 +110,11 @@ void setup()
   Serial.println(volumesize);
 
   
-  Serial.println("\nFiles found on the card (name, date and size in bytes): ");
-  root.openRoot(volume);
+  //Serial.println("\nFiles found on the card (name, date and size in bytes): ");
+  //root.openRoot(volume);
   
   // list all files in the card with date and size
-  root.ls(LS_R | LS_DATE | LS_SIZE);
+  //root.ls(LS_R | LS_DATE | LS_SIZE);
 }
 
 

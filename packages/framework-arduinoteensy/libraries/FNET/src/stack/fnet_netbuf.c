@@ -89,6 +89,11 @@ fnet_netbuf_t *_fnet_netbuf_new( fnet_size_t len, fnet_bool_t drain )
     nb->length = len;
     nb->total_length = len;
     nb->flags = 0u;
+    
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+    nb->timestamp = -1;
+    nb->timestamp_ns = 2000000000u;
+#endif
 
     return (nb);
 }
@@ -145,7 +150,13 @@ fnet_netbuf_t *_fnet_netbuf_copy( fnet_netbuf_t *nb, fnet_size_t offset, fnet_si
     loc_nb_head = loc_nb; /* Save the head of net_buf chain.*/
     loc_nb->next_chain = (fnet_netbuf_t *)0;
     loc_nb->total_length = (fnet_size_t)len;
+    
     loc_nb->flags = nb->flags;
+    
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+    loc_nb->timestamp = nb->timestamp;
+    loc_nb->timestamp_ns = nb->timestamp_ns;
+#endif
 
     if(tmp_nb->length > offset) /* If offset less than size of 1st net_buf.*/
     {
@@ -209,6 +220,11 @@ fnet_netbuf_t *_fnet_netbuf_copy( fnet_netbuf_t *nb, fnet_size_t offset, fnet_si
 
             loc_nb->data = tmp_nb->data;
             loc_nb->flags = tmp_nb->flags;
+            
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+            loc_nb->timestamp = tmp_nb->timestamp;
+            loc_nb->timestamp_ns = tmp_nb->timestamp_ns;
+#endif
 
             ((fnet_uint32_t *)loc_nb->data)[0] = ((fnet_uint32_t *)loc_nb->data)[0] + 1u; /* Increment the the reference_counter.*/
 
@@ -496,14 +512,13 @@ void _fnet_netbuf_trim( fnet_netbuf_t **nb_ptr, fnet_int32_t len )
     fnet_netbuf_t   *nb;
     fnet_size_t     tot_len;
     fnet_size_t     total_rem;
-    fnet_netbuf_t   *tmp_nb;
+    fnet_flag_t     tmp_flags;
 
     if(len == 0)
     {
         return;
     }
 
-    tmp_nb = (fnet_netbuf_t *) *nb_ptr;
     nb = (fnet_netbuf_t *) *nb_ptr;
     head_nb = nb;
 
@@ -518,6 +533,9 @@ void _fnet_netbuf_trim( fnet_netbuf_t **nb_ptr, fnet_int32_t len )
 
     if(len > 0) /* Trim len bytes from the begin of the buffer.*/
     {
+        /* If we delete the head_nb, we want to carry forward the flags */
+        tmp_flags = nb->flags;
+
         while((nb != 0) && ((fnet_size_t)len >= tot_len))
         {
             *nb_ptr = nb->next;
@@ -534,7 +552,12 @@ void _fnet_netbuf_trim( fnet_netbuf_t **nb_ptr, fnet_int32_t len )
             nb->data_ptr = (fnet_uint8_t *)nb->data_ptr + /* Or change pointer. */
                            nb->length - (tot_len - (fnet_size_t)len);
             nb->length = tot_len - (fnet_size_t)len;
-            nb->flags = tmp_nb->flags;
+            nb->flags = tmp_flags;
+            
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+            nb->timestamp = tmp_nb->timestamp;
+            nb->timestamp_ns = tmp_nb->timestamp_ns;
+#endif
         }
     }
     else /* Trim len bytes from the end of the buffer. */
@@ -729,6 +752,15 @@ fnet_netbuf_t *_fnet_netbuf_concat( fnet_netbuf_t *nb1, fnet_netbuf_t *nb2 )
 
     head_nb->flags |= nb2->flags;
     head_nb->total_length += nb2->total_length;
+    
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+    if(nb2->timestamp != -1){   /* -1 means the timestamp isn't valid in normal operation so we don't want it.*/
+        head_nb->timestamp = nb2->timestamp;
+    }
+    if(nb2->timestamp_ns != 2000000000U){  /* 2000000000U means the timestamp isn't valid in normal operation so we don't want it.*/
+        head_nb->timestamp_ns = nb2->timestamp_ns;
+    }
+#endif
 
     return head_nb;
 }

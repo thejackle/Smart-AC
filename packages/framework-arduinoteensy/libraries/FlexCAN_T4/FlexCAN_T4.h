@@ -46,7 +46,7 @@ typedef struct CAN_message_t {
   } flags;
   uint8_t len = 8;      // length of data
   uint8_t buf[8] = { 0 };       // data
-  uint8_t mb = 0;       // used to identify mailbox reception
+  int8_t mb = 0;       // used to identify mailbox reception
   uint8_t bus = 0;      // used to identify where the message came from when events() is used.
   bool seq = 0;         // sequential frames
 } CAN_message_t;
@@ -65,13 +65,14 @@ typedef struct CANFD_message_t {
   } flags;
   uint8_t len = 8;      // length of data
   uint8_t buf[64] = { 0 };       // data
-  uint8_t mb = 0;       // used to identify mailbox reception
+  int8_t mb = 0;       // used to identify mailbox reception
   uint8_t bus = 0;      // used to identify where the message came from when events() is used.
   bool seq = 0;         // sequential frames
 } CANFD_message_t;
 
 typedef void (*_MB_ptr)(const CAN_message_t &msg); /* mailbox / global callbacks */
 typedef void (*_MBFD_ptr)(const CANFD_message_t &msg); /* mailbox / global callbacks */
+
 
 typedef enum FLEXCAN_PINS {
   ALT = 0,
@@ -197,7 +198,8 @@ typedef enum FLEXCAN_FILTER_TABLE {
   FLEXCAN_MULTI = 1,
   FLEXCAN_RANGE = 2,
   FLEXCAN_TABLE_B_MULTI = 3,
-  FLEXCAN_TABLE_B_RANGE = 4
+  FLEXCAN_TABLE_B_RANGE = 4,
+  FLEXCAN_USERMASK = 5
 } FLEXCAN_FILTER_TABLE;
 
 typedef enum FLEXCAN_FIFOTABLE {
@@ -264,6 +266,7 @@ typedef enum FLEXCAN_TXQUEUE_TABLE {
 
 typedef enum CAN_DEV_TABLE {
 #if defined(__IMXRT1062__)
+  CAN0 = (uint32_t)0x0,
   CAN1 = (uint32_t)0x401D0000,
   CAN2 = (uint32_t)0x401D4000,
   CAN3 = (uint32_t)0x401D8000
@@ -271,6 +274,8 @@ typedef enum CAN_DEV_TABLE {
 #if defined(__MK20DX256__) || defined(__MK64FX512__) || defined(__MK66FX1M0__)
   CAN0 = (uint32_t)0x40024000,
   CAN1 = (uint32_t)0x400A4000,
+  CAN2 = (uint32_t)0x0,
+  CAN3 = (uint32_t)0x0
 #endif
 } CAN_DEV_TABLE;
 
@@ -281,6 +286,21 @@ typedef enum CAN_DEV_TABLE {
 #define FCTPFD_CLASS template<CAN_DEV_TABLE _bus, FLEXCAN_RXQUEUE_TABLE _rxSize = RX_SIZE_16, FLEXCAN_TXQUEUE_TABLE _txSize = TX_SIZE_16>
 #define FCTPFD_FUNC template<CAN_DEV_TABLE _bus, FLEXCAN_RXQUEUE_TABLE _rxSize, FLEXCAN_TXQUEUE_TABLE _txSize>
 #define FCTPFD_OPT FlexCAN_T4FD<_bus, _rxSize, _txSize>
+
+#define SIZE_LISTENERS 4
+
+class CANListener {
+  public:
+    CANListener () { callbacksActive = 0; }
+    virtual bool frameHandler (CAN_message_t &frame, int mailbox, uint8_t controller) { return false; }
+    virtual void txHandler (int mailbox, uint8_t controller) {;} /* unused in Collin's library */
+    void attachMBHandler (uint64_t mailBox) { callbacksActive |= (1UL << mailBox); }
+    void detachMBHandler (uint64_t mailBox) { callbacksActive &= ~(1UL << mailBox); }
+    void attachGeneralHandler (void) { generalCallbackActive = 1; }
+    void detachGeneralHandler (void) { generalCallbackActive = 0; }
+    uint64_t callbacksActive; // bitfield indicating which callbacks are installed (for object oriented callbacks only)
+    bool generalCallbackActive = 0;
+};
 
 class FlexCAN_T4_Base {
   public:
@@ -353,7 +373,6 @@ FCTPFD_CLASS class FlexCAN_T4FD : public FlexCAN_T4_Base {
     void disableDMA() { enableDMA(0); }
     uint8_t getFirstTxBoxSize();
     void setMBFilterProcessing(FLEXCAN_MAILBOX mb_num, uint32_t filter_id, uint32_t calculated_mask);
-    
 
   private:
     uint64_t readIFLAG() { return (((uint64_t)FLEXCANb_IFLAG2(_bus) << 32) | FLEXCANb_IFLAG1(_bus)); }
@@ -398,6 +417,9 @@ FCTPFD_CLASS class FlexCAN_T4FD : public FlexCAN_T4_Base {
 FCTP_CLASS class FlexCAN_T4 : public FlexCAN_T4_Base {
   public:
     FlexCAN_T4();
+    CANListener *listener[SIZE_LISTENERS];
+    bool attachObj (CANListener *listener);
+    bool detachObj (CANListener *listener);
     bool isFD() { return 0; }
     void begin();
     uint32_t getBaudRate() { return currentBitrate; }
@@ -406,6 +428,7 @@ FCTP_CLASS class FlexCAN_T4 : public FlexCAN_T4_Base {
     void setBaudRate(uint32_t baud = 1000000, FLEXCAN_RXTX listen_only = TX);
     void reset() { softReset(); } /* reset flexcan controller (needs register restore capabilities...) */
     void setMaxMB(uint8_t last);
+    void enableLoopBack(bool yes = 1);
     void enableFIFO(bool status = 1);
     void disableFIFO() { enableFIFO(0); }
     void enableFIFOInterrupt(bool status = 1);
@@ -423,6 +446,12 @@ FCTP_CLASS class FlexCAN_T4 : public FlexCAN_T4_Base {
     void setRRS(bool rrs = 1); /* store remote frames */
     void onReceive(const FLEXCAN_MAILBOX &mb_num, _MB_ptr handler); /* individual mailbox callback function */
     void onReceive(_MB_ptr handler); /* global callback function */
+    void onTransmit(const FLEXCAN_MAILBOX &mb_num, _MB_ptr handler); /* individual mailbox callback function */
+    void onTransmit(_MB_ptr handler); /* global callback function */
+    bool setMBUserFilter(FLEXCAN_MAILBOX mb_num, uint32_t id1, uint32_t mask);
+    bool setMBUserFilter(FLEXCAN_MAILBOX mb_num, uint32_t id1, uint32_t id2, uint32_t mask);
+    bool setMBUserFilter(FLEXCAN_MAILBOX mb_num, uint32_t id1, uint32_t id2, uint32_t id3, uint32_t mask);
+    bool setMBUserFilter(FLEXCAN_MAILBOX mb_num, uint32_t id1, uint32_t id2, uint32_t id3, uint32_t id4, uint32_t mask);
     void setMBFilter(FLEXCAN_FLTEN input); /* enable/disable traffic for all MBs (for individual masking) */
     void setMBFilter(FLEXCAN_MAILBOX mb_num, FLEXCAN_FLTEN input); /* set specific MB to accept/deny traffic */
     bool setMBFilter(FLEXCAN_MAILBOX mb_num, uint32_t id1); /* input 1 ID to be filtered */
@@ -438,6 +467,10 @@ FCTP_CLASS class FlexCAN_T4 : public FlexCAN_T4_Base {
     uint8_t setRFFN(FLEXCAN_RFFN_TABLE rffn = RFFN_8); /* Number Of Rx FIFO Filters (0 == 8 filters, 1 == 16 filters, etc.. */
     uint8_t setRFFN(uint8_t rffn) { return setRFFN((FLEXCAN_RFFN_TABLE)constrain(rffn, 0, 15)); }
     void setFIFOFilterTable(FLEXCAN_FIFOTABLE letter);
+    bool setFIFOUserFilter(uint8_t filter, uint32_t id1, uint32_t mask, const FLEXCAN_IDE &ide, const FLEXCAN_IDE &remote = NONE);
+    bool setFIFOUserFilter(uint8_t filter, uint32_t id1, uint32_t id2, uint32_t mask, const FLEXCAN_IDE &ide, const FLEXCAN_IDE &remote = NONE);
+    bool setFIFOUserFilter(uint8_t filter, uint32_t id1, uint32_t id2, uint32_t id3, uint32_t mask, const FLEXCAN_IDE &ide, const FLEXCAN_IDE &remote = NONE);
+    bool setFIFOUserFilter(uint8_t filter, uint32_t id1, uint32_t id2, uint32_t id3, uint32_t id4, uint32_t mask, const FLEXCAN_IDE &ide, const FLEXCAN_IDE &remote = NONE);
     void setFIFOFilter(const FLEXCAN_FLTEN &input);
     bool setFIFOFilter(uint8_t filter, uint32_t id1, const FLEXCAN_IDE &ide, const FLEXCAN_IDE &remote = NONE); /* single ID per filter */
     bool setFIFOFilter(uint8_t filter, uint32_t id1, uint32_t id2, const FLEXCAN_IDE &ide, const FLEXCAN_IDE &remote = NONE); /* 2 ID's per filter */
@@ -455,10 +488,13 @@ FCTP_CLASS class FlexCAN_T4 : public FlexCAN_T4_Base {
     void enableDMA(bool state = 1);
     void disableDMA() { enableDMA(0); }
     uint8_t getFirstTxBoxSize(){ return 8; }
-    void setMBFilterProcessing(FLEXCAN_MAILBOX mb_num, uint32_t filter_id, uint32_t calculated_mask);
-    
+    void FLEXCAN_ExitFreezeMode();
+    void FLEXCAN_EnterFreezeMode();
+    uint32_t getRXQueueCount() { return rxBuffer.size(); }
+    uint32_t getTXQueueCount() { return txBuffer.size(); }
 
   private:
+    void setMBFilterProcessing(FLEXCAN_MAILBOX mb_num, uint32_t filter_id, uint32_t calculated_mask);
     void writeTxMailbox(uint8_t mb_num, const CAN_message_t &msg);
     uint64_t readIMASK();// { return (((uint64_t)FLEXCANb_IMASK2(_bus) << 32) | FLEXCANb_IMASK1(_bus)); }
     void flexcan_interrupt();
@@ -468,11 +504,10 @@ FCTP_CLASS class FlexCAN_T4 : public FlexCAN_T4_Base {
 #if defined(__IMXRT1062__)
     uint32_t getClock();
 #endif
-    void FLEXCAN_ExitFreezeMode();
-    void FLEXCAN_EnterFreezeMode();
     volatile uint32_t fifo_filter_table[32][6];
     volatile uint32_t mb_filter_table[64][6];
     volatile bool fifo_filter_match(uint32_t id);
+    volatile bool isEventsUsed = 0;
     volatile void frame_distribution(CAN_message_t &msg);
     void filter_store(FLEXCAN_FILTER_TABLE type, FLEXCAN_MAILBOX mb_num, uint32_t id_count, uint32_t id1, uint32_t id2, uint32_t id3, uint32_t id4, uint32_t id5);
     void fifo_filter_store(FLEXCAN_FILTER_TABLE type, uint8_t filter, uint32_t id_count, uint32_t id1, uint32_t id2, uint32_t id3, uint32_t id4, uint32_t id5);
@@ -484,6 +519,8 @@ FCTP_CLASS class FlexCAN_T4 : public FlexCAN_T4_Base {
     int getFirstTxBox();
     _MB_ptr _mbHandlers[64]; /* individual mailbox handlers */
     _MB_ptr _mainHandler; /* global mailbox handler */
+    _MB_ptr _mbTxHandlers[64]; /* individual mailbox tx handlers */
+    _MB_ptr _mainTxHandler; /* global mailbox handler */
     uint64_t readIFLAG();// { return (((uint64_t)FLEXCANb_IFLAG2(_bus) << 32) | FLEXCANb_IFLAG1(_bus)); }
     void writeIFLAG(uint64_t value);
     void writeIFLAGBit(uint8_t mb_num);

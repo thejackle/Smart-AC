@@ -373,6 +373,7 @@ private:
 	}
 	inline static void resetSS() {
 		*(ss_pin_reg+33) = ss_pin_mask;
+		if (chip == 51) delayNanoseconds(10);
 	}
 #elif defined(__MKL26Z64__)
 	static volatile uint8_t *ss_pin_reg;
@@ -468,7 +469,7 @@ extern W5100Class W5100;
 #ifndef UTIL_H
 #define UTIL_H
 
-#define htons(x) ( (((x)<<8)&0xFF00) | (((x)>>8)&0xFF) )
+#define htons(x) ( (((x)&0xFF)<<8) | (((x)>>8)&0xFF) )
 #define ntohs(x) htons(x)
 
 #define htonl(x) ( ((x)<<24 & 0xFF000000UL) | \

@@ -1,6 +1,6 @@
 {
   "name": "tool-teensy",
-  "version": "1.152.200516",
+  "version": "1.155.0",
   "description": "Upload tools for Teensy boards",
   "keywords": [
     "tools",
@@ -9,8 +9,8 @@
   ],
   "homepage": "https://www.pjrc.com/teensy/loader.html",
   "system": [
-    "windows",
-    "windows_amd64",
-    "windows_x86"
+     "windows",
+     "windows_amd64",
+     "windows_x86"
   ]
 }

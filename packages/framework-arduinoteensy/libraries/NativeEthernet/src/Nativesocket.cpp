@@ -48,15 +48,23 @@ void EthernetClass::socketPortRand(uint16_t n)
 uint8_t EthernetClass::socketBegin(uint8_t protocol, uint16_t port)
 {
         uint8_t s, maxindex = socket_num;
-            // look at all the hardware sockets, use any that are closed (unused)
-            for (s=0; s < maxindex; s++) {
-                if(socket_ptr[s] == nullptr){
-                    
-                    goto makesocket;
-                }
+        // look at all the hardware sockets, use any that are closed (unused)
+        for (s=0; s < maxindex; s++) {
+            if(socket_ptr[s] == nullptr){
+                
+                goto makesocket;
             }
+        }
+        // As a last resort, forcibly close any already closing
+        for (s=0; s < maxindex; s++) {
+            uint8_t stat = socketStatus(s);
+            if (stat == SnSR::FIN_WAIT) goto closemakesocket;
+            if (stat == SnSR::CLOSE_WAIT) goto closemakesocket;
+        }
         return socket_num;
     
+closemakesocket:
+    socketClose(s);
 makesocket:
     struct fnet_sockaddr_in local_addr;
     
@@ -84,10 +92,16 @@ makesocket:
     local_addr.sin_port = FNET_HTONS(port); //fnet_htons(UDP_PORT);
     local_addr.sin_addr.s_addr = INADDR_ANY; //fnet_htonl(INADDR_ANY);
     local_addr.sin_family = AF_INET;
-
     
-        fnet_socket_setopt(socket_ptr[s], SOL_SOCKET, SO_RCVBUF, &bufsize_option, sizeof(bufsize_option));
-        fnet_socket_setopt(socket_ptr[s], SOL_SOCKET, SO_SNDBUF, &bufsize_option, sizeof(bufsize_option));
+// bind the socket to the port
+    if (FNET_ERR == fnet_socket_bind(socket_ptr[s], (struct fnet_sockaddr*)(&local_addr), sizeof(local_addr))) {
+//        Serial.println("UDP/IP: Socket bind error.");
+        fnet_socket_close(socket_ptr[s]);
+        return socket_num;
+    }
+    
+    fnet_socket_setopt(socket_ptr[s], SOL_SOCKET, SO_RCVBUF, &bufsize_option, sizeof(bufsize_option));
+    fnet_socket_setopt(socket_ptr[s], SOL_SOCKET, SO_SNDBUF, &bufsize_option, sizeof(bufsize_option));
     if(protocol == SnMR::TCP){
         const struct fnet_linger    linger_option =
         {
@@ -98,13 +112,6 @@ makesocket:
         fnet_socket_setopt(socket_ptr[s], SOL_SOCKET, SO_LINGER, &linger_option, sizeof(linger_option));
 //        fnet_socket_setopt(socket_ptr[s], IPPROTO_TCP, TCP_MSS, &bufsize_option, sizeof(bufsize_option));
     }
-    
-    // bind the socket to the port
-        if (FNET_ERR == fnet_socket_bind(socket_ptr[s], (struct fnet_sockaddr*)(&local_addr), sizeof(local_addr))) {
-    //        Serial.println("UDP/IP: Socket bind error.");
-            fnet_socket_close(socket_ptr[s]);
-            return socket_num;
-        }
     
     EthernetServer::server_port[s] = 0;
     return s;
@@ -150,7 +157,13 @@ uint8_t EthernetClass::socketStatus(uint8_t s)
     }
     fnet_socket_state_t state;
     fnet_size_t state_size = sizeof(state);
-    fnet_socket_getopt(socket_ptr[s], SOL_SOCKET, SO_STATE, &state, &state_size);
+    if(fnet_socket_getopt(socket_ptr[s], SOL_SOCKET, SO_STATE, &state, &state_size) == FNET_ERR){
+        int8_t error_handler = fnet_error_get();
+        Serial.print("StateErr: ");
+        Serial.send_now();
+        Serial.println(error_handler);
+        Serial.send_now();
+    }
     switch (state) {
         case SS_CLOSED:
             return SnSR::CLOSED;
@@ -173,7 +186,17 @@ uint8_t EthernetClass::socketStatus(uint8_t s)
 //
 void EthernetClass::socketClose(uint8_t s)
 {
+#if FNET_CFG_TLS
+    if(EthernetServer::_tls[s]){
+        fnet_tls_socket_close(EthernetServer::tls_socket_ptr[s]);
+    }
+    EthernetServer::_tls[s] = false;
+#endif
     fnet_socket_close(socket_ptr[s]);
+    
+//    while(Ethernet.socketStatus(s) != 1){
+//        
+//    }
     socket_ptr[s] = nullptr;
 }
 
@@ -202,15 +225,15 @@ void EthernetClass::socketConnect(uint8_t s, uint8_t * addr, uint16_t port)
     remoteaddr.sin_family = AF_INET;
     remoteaddr.sin_port = FNET_HTONS(port);
     remoteaddr.sin_addr.s_addr = *(fnet_ip4_addr_t*)addr;
-    fnet_socket_connect(socket_ptr[s], (struct fnet_sockaddr*)&remoteaddr, sizeof(remoteaddr));
-//    fnet_return_t ret = fnet_socket_connect(socket_ptr[s], (struct fnet_sockaddr*)&remoteaddr, sizeof(remoteaddr));
-//    if(ret == FNET_ERR){
-//        int8_t error_handler = fnet_error_get();
-//        Serial.print("Connect Err: ");
-//        Serial.send_now();
-//        Serial.println(error_handler);
-//        Serial.send_now();
-//    }
+//    fnet_socket_connect(socket_ptr[s], (struct fnet_sockaddr*)&remoteaddr, sizeof(remoteaddr));
+    fnet_return_t ret = fnet_socket_connect(socket_ptr[s], (struct fnet_sockaddr*)&remoteaddr, sizeof(remoteaddr));
+    if(ret == FNET_ERR){
+        int8_t error_handler = fnet_error_get();
+        Serial.print("Connect Err: ");
+        Serial.send_now();
+        Serial.println(error_handler);
+        Serial.send_now();
+    }
 }
 
 
@@ -219,7 +242,14 @@ void EthernetClass::socketConnect(uint8_t s, uint8_t * addr, uint16_t port)
 //
 void EthernetClass::socketDisconnect(uint8_t s)
 {
-    socketClose(s);
+//    socketClose(s);
+    if(fnet_socket_shutdown(socket_ptr[s], SD_WRITE) == FNET_ERR){
+//        Serial.println("Socket Shutdown Error");
+//        int8_t error_handler = fnet_error_get();
+//        Serial.print("RemainingErr: ");
+//        Serial.println(error_handler);
+//        Serial.send_now();
+    };
 }
 
 
@@ -252,7 +282,7 @@ uint16_t EthernetClass::socketRecvAvailable(uint8_t s)
     int ret = fnet_socket_recv(Ethernet.socket_ptr[s], socket_buf_receive[s], Ethernet.socket_size, MSG_PEEK);
     if(ret == -1){
 //        int8_t error_handler = fnet_error_get();
-//            Serial.print("RemainingErr: ");
+//            Serial.print("SocketRecvAvailErr: ");
 //            Serial.send_now();
 //            Serial.println(error_handler);
 //        Serial.print("Socket Index: ");
@@ -283,23 +313,41 @@ uint8_t EthernetClass::socketPeek(uint8_t s)
  */
 uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 {
-    fnet_ssize_t ret = fnet_socket_send(socket_ptr[s], buf, len, 0);
-    if(ret == -1) return 0;
+    while(socketSendAvailable(s) < len){}
+    fnet_ssize_t ret = -1;
+#if FNET_CFG_TLS
+    if(EthernetServer::_tls[s]){
+        ret = fnet_tls_socket_send(EthernetServer::tls_socket_ptr[s], buf, len);
+    }
+    else{
+        ret = fnet_socket_send(socket_ptr[s], buf, len, 0);
+    }
+#else
+    ret = fnet_socket_send(socket_ptr[s], buf, len, 0);
+#endif
+    if(ret == -1) {
+        int8_t error_handler = fnet_error_get();
+        Serial.print("SendErr: ");
+        Serial.send_now();
+        Serial.println(error_handler);
+        return 0;
+    }
     return  ret;
 }
 
 uint16_t EthernetClass::socketSendAvailable(uint8_t s)
 {
-    uint16_t _max, _pending;
+    fnet_ssize_t _max, _pending;
     fnet_size_t _max_size, _pending_size;
     _pending_size = sizeof(_pending);
+    _max_size = sizeof(_max_size);
     if(fnet_socket_getopt(socket_ptr[s], SOL_SOCKET, SO_SNDNUM, &_pending, &_pending_size) == FNET_ERR){
         return 0;
     }
     if(fnet_socket_getopt(socket_ptr[s], SOL_SOCKET, SO_SNDBUF, &_max, &_max_size) == FNET_ERR){
         return 0;
     }
-    return _max - _pending;
+    return (uint16_t)(_max - _pending);
 }
 
 uint16_t EthernetClass::socketBufferData(uint8_t s, uint16_t offset, const uint8_t* buf, uint16_t len)
@@ -326,18 +374,21 @@ bool EthernetClass::socketStartUDP(uint8_t s, uint8_t* addr, uint16_t port)
 		return false;
 	}
     socket_buf_len[s] = 0;
-    socket_addr[s] = addr;
+    socket_addr[s][0] = addr[0];
+    socket_addr[s][1] = addr[1];
+    socket_addr[s][2] = addr[2];
+    socket_addr[s][3] = addr[3];
     socket_port[s] = FNET_HTONS(port);
 	return true;
 }
 
-bool EthernetClass::socketSendUDP(uint8_t s)
+bool EthernetClass::socketSendUDP(uint8_t s, fnet_flag_t flags)
 {
     struct fnet_sockaddr_in remoteaddr;
           remoteaddr.sin_family = AF_INET;
           remoteaddr.sin_port = socket_port[s];
-          remoteaddr.sin_addr.s_addr = *(fnet_ip4_addr_t*)socket_addr[s];
+          remoteaddr.sin_addr.s_addr = FNET_IP4_ADDR_INIT(socket_addr[s][0], socket_addr[s][1], socket_addr[s][2], socket_addr[s][3]);
        
-       return fnet_socket_sendto(socket_ptr[s], socket_buf_transmit[s], socket_buf_len[s], 0, (struct fnet_sockaddr*)&remoteaddr, sizeof(remoteaddr)) != FNET_ERR ? true : false;
+       return fnet_socket_sendto(socket_ptr[s], socket_buf_transmit[s], socket_buf_len[s], flags, (struct fnet_sockaddr*)&remoteaddr, sizeof(remoteaddr)) != FNET_ERR ? true : false;
 }
 

@@ -139,15 +139,23 @@ void HardwareSerial::begin(uint32_t baud, uint16_t format)
 
 //	uint32_t fastio = IOMUXC_PAD_SRE | IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3);
 
-	*(portControlRegister(hardware->rx_pins[rx_pin_index_].pin)) = IOMUXC_PAD_DSE(7) | IOMUXC_PAD_PKE | IOMUXC_PAD_PUE | IOMUXC_PAD_PUS(3) | IOMUXC_PAD_HYS;
-	*(portConfigRegister(hardware->rx_pins[rx_pin_index_].pin)) = hardware->rx_pins[rx_pin_index_].mux_val;
-	if (hardware->rx_pins[rx_pin_index_].select_input_register) {
-	 	*(hardware->rx_pins[rx_pin_index_].select_input_register) =  hardware->rx_pins[rx_pin_index_].select_val;		
-	}	
+	// Maybe different pin configs if half duplex
+	half_duplex_mode_ = (format & SERIAL_HALF_DUPLEX) != 0;
+	if (!half_duplex_mode_)  {
+		*(portControlRegister(hardware->rx_pins[rx_pin_index_].pin)) = IOMUXC_PAD_DSE(7) | IOMUXC_PAD_PKE | IOMUXC_PAD_PUE | IOMUXC_PAD_PUS(3) | IOMUXC_PAD_HYS;
+		*(portConfigRegister(hardware->rx_pins[rx_pin_index_].pin)) = hardware->rx_pins[rx_pin_index_].mux_val;
+		if (hardware->rx_pins[rx_pin_index_].select_input_register) {
+		 	*(hardware->rx_pins[rx_pin_index_].select_input_register) =  hardware->rx_pins[rx_pin_index_].select_val;		
+		}	
 
-	*(portControlRegister(hardware->tx_pins[tx_pin_index_].pin)) =  IOMUXC_PAD_SRE | IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3);
-	*(portConfigRegister(hardware->tx_pins[tx_pin_index_].pin)) = hardware->tx_pins[tx_pin_index_].mux_val;
-
+		*(portControlRegister(hardware->tx_pins[tx_pin_index_].pin)) =  IOMUXC_PAD_SRE | IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3);
+		*(portConfigRegister(hardware->tx_pins[tx_pin_index_].pin)) = hardware->tx_pins[tx_pin_index_].mux_val;
+	} else {
+		// Half duplex maybe different pin pad config like PU...		
+		*(portControlRegister(hardware->tx_pins[tx_pin_index_].pin)) =  IOMUXC_PAD_SRE | IOMUXC_PAD_DSE(3) | IOMUXC_PAD_SPEED(3) 
+				| IOMUXC_PAD_PKE | IOMUXC_PAD_PUE | IOMUXC_PAD_PUS(3);
+		*(portConfigRegister(hardware->tx_pins[tx_pin_index_].pin)) = hardware->tx_pins[tx_pin_index_].mux_val;
+	}
 	if (hardware->tx_pins[tx_pin_index_].select_input_register) {
 	 	*(hardware->tx_pins[tx_pin_index_].select_input_register) =  hardware->tx_pins[tx_pin_index_].select_val;		
 	}	
@@ -186,6 +194,9 @@ void HardwareSerial::begin(uint32_t baud, uint16_t format)
 
 	// Bit 5 TXINVERT
 	if (format & 0x20) ctrl |= LPUART_CTRL_TXINV;		// tx invert
+
+	// Now see if the user asked for Half duplex:
+	if (half_duplex_mode_) ctrl |= (LPUART_CTRL_LOOPS | LPUART_CTRL_RSRC);
 
 	// write out computed CTRL
 	port->CTRL = ctrl;
@@ -416,11 +427,14 @@ void HardwareSerial::addMemoryForRead(void *buffer, size_t length)
 {
 	rx_buffer_storage_ = (BUFTYPE*)buffer;
 	if (buffer) {
-		rx_buffer_total_size_ = rx_buffer_total_size_ + length;
+		rx_buffer_total_size_ = rx_buffer_size_ + length;
 	} else {
-		rx_buffer_total_size_ = rx_buffer_total_size_;
+		rx_buffer_total_size_ = rx_buffer_size_;
 	} 
 
+	// Make sure we don't end up indexing into no mans land. 
+	rx_buffer_head_ = 0;
+	rx_buffer_tail_ = 0;
 	rts_low_watermark_ = rx_buffer_total_size_ - hardware->rts_low_watermark;
 	rts_high_watermark_ = rx_buffer_total_size_ - hardware->rts_high_watermark;
 }
@@ -429,10 +443,13 @@ void HardwareSerial::addMemoryForWrite(void *buffer, size_t length)
 {
 	tx_buffer_storage_ = (BUFTYPE*)buffer;
 	if (buffer) {
-		tx_buffer_total_size_ = tx_buffer_total_size_ + length;
+		tx_buffer_total_size_ = tx_buffer_size_ + length;
 	} else {
-		tx_buffer_total_size_ = tx_buffer_total_size_;
+		tx_buffer_total_size_ = tx_buffer_size_;
 	} 
+	// Make sure we don't end up indexing into no mans land. 
+	tx_buffer_head_ = 0;
+	tx_buffer_tail_ = 0;
 }
 
 int HardwareSerial::peek(void)
@@ -525,6 +542,13 @@ size_t HardwareSerial::write9bit(uint32_t c)
 	//digitalWrite(3, HIGH);
 	//digitalWrite(5, HIGH);
 	if (transmit_pin_baseReg_) DIRECT_WRITE_HIGH(transmit_pin_baseReg_, transmit_pin_bitmask_);
+	if(half_duplex_mode_) {		
+		__disable_irq();
+	    port->CTRL |= LPUART_CTRL_TXDIR;
+		__enable_irq();
+		//digitalWriteFast(2, HIGH);
+	}
+
 	head = tx_buffer_head_;
 	if (++head >= tx_buffer_total_size_) head = 0;
 	while (tx_buffer_tail_ == head) {
@@ -639,6 +663,12 @@ void HardwareSerial::IRQHandler()
 	{
 		transmitting_ = 0;
 		if (transmit_pin_baseReg_) DIRECT_WRITE_LOW(transmit_pin_baseReg_, transmit_pin_bitmask_);
+		if(half_duplex_mode_) {		
+			__disable_irq();
+		    port->CTRL &= ~LPUART_CTRL_TXDIR;
+			__enable_irq();
+			//digitalWriteFast(2, LOW);
+		}
 
 		port->CTRL &= ~LPUART_CTRL_TCIE;
 	}
@@ -647,6 +677,9 @@ void HardwareSerial::IRQHandler()
 
 
 void HardwareSerial::addToSerialEventsList() {
+	for (uint8_t i = 0; i < s_count_serials_with_serial_events; i++) {
+		if (s_serials_with_serial_events[i] == this) return; // already in the list.
+	}
 	s_serials_with_serial_events[s_count_serials_with_serial_events++] = this;
 	yield_active_check_flags |= YIELD_CHECK_HARDWARE_SERIAL;
 }

@@ -88,7 +88,19 @@ int EthernetUDP::beginPacket(IPAddress ip, uint16_t port)
 
 int EthernetUDP::endPacket()
 {
-	return Ethernet.socketSendUDP(sockindex);
+    return Ethernet.socketSendUDP(sockindex);
+}
+
+int EthernetUDP::endPacket(fnet_flag_t flags)
+{
+    int ret = Ethernet.socketSendUDP(sockindex, flags);
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+    if(flags == MSG_TIMESTAMP){
+        send_timestamp = fnet_socket_send_timestamp(Ethernet.socket_ptr[sockindex]);
+        send_timestamp_ns = fnet_socket_send_timestamp_ns(Ethernet.socket_ptr[sockindex]);
+    }
+#endif /*FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER*/
+    return ret;
 }
 
 size_t EthernetUDP::write(uint8_t byte)
@@ -124,22 +136,23 @@ int EthernetUDP::parsePacket()
         fnet_size_t fromlen = sizeof(from);
         
 		fnet_ssize_t ret = fnet_socket_recvfrom(Ethernet.socket_ptr[sockindex], Ethernet.socket_buf_receive[sockindex], Ethernet.socket_size, 0, &from, &fromlen);
+#if FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER
+        recv_timestamp = fnet_socket_recv_timestamp(Ethernet.socket_ptr[sockindex]);
+        recv_timestamp_ns = fnet_socket_recv_timestamp_ns(Ethernet.socket_ptr[sockindex]);
+#endif /*FNET_CFG_CPU_ETH_ADJUSTABLE_TIMER*/
         Ethernet.socket_buf_index[sockindex] = 0;
 
 		//read 8 header bytes and get IP and port from it
-        int8_t error_handler = fnet_error_get();
-                if(ret == -1){
-//                    Serial.print("RecvErr: ");
-//                    Serial.send_now();
-//                    Serial.println(error_handler);
-//                    Serial.print("Socket Index: ");
-//                    Serial.println(sockindex);
-//                    Serial.print("Remaining: ");
-//                    Serial.println(_remaining);
-//                    Serial.send_now();
-                    return 0;
-                }
-        if(error_handler == -6){
+        if(ret == -1){
+//            int8_t error_handler = fnet_error_get();
+//            Serial.print("RecvErr: ");
+//            Serial.send_now();
+//            Serial.println(error_handler);
+//            Serial.print("Socket Index: ");
+//            Serial.println(sockindex);
+//            Serial.print("Remaining: ");
+//            Serial.println(_remaining);
+//            Serial.send_now();
             return 0;
         }
 		if (ret > 0) {

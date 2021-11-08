@@ -10,6 +10,7 @@
 #include <DFRobot_LedDisplayModule.h>
 
 //this is a test comment for github
+// This adds another line
 
 //Global variables
     double Global_TempCurrent = 20.00;

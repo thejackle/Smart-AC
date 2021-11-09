@@ -9,23 +9,22 @@
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
 
+
 // Global variables
     double Global_TempCurrent = 20.00;
-    double Global_TempSet = 23.00;
-    int Global_FanSetting = 0;
-    int Global_CoolerSetting = 0;
-
-    double Local_TempSet = Global_TempSet;
-    int Local_FanSetting = Global_FanSetting;
-    int Local_CoolerSetting = Global_CoolerSetting;
-    bool Local_Update = false;
-
-    double Net_TempSet = Global_TempSet;
-    int Net_FanSetting = Global_FanSetting;
-    int Net_CoolerSetting = Global_CoolerSetting;
-    bool Net_Update = false;
-
     int LastUpdate = 0;
+    
+    struct Settings
+    {
+        double setPoint = 23.0;
+        int fanSetting = 0;
+        int coolerSetting = 0;
+        bool update = false;
+    };
+
+    Settings localSetting;
+    Settings netSetting;
+    Settings currentSetting;
 
 // Keypad setup
     #define COL_NUM 4
@@ -269,98 +268,88 @@ void loop()
     if (keyinput)
     {
         // Serial.println(keyinput);
-        if (keyinput == '2')
+        switch (keyinput)
         {
-            // up
-            mainmenu_index++;
-        }
-        else if (keyinput == '5')
-        {
-            // Down
-            mainmenu_index--;
-        }
-        else if (keyinput == '6')
-        {
-            // Increase
-            Local_TempSet += 0.5;
-        }
-        else if (keyinput == '4')
-        {
-            // Decreas
-            Local_TempSet -= 0.5;        
-        }
-        else if (keyinput == '7')
-        {
-            // Fan down
-            if (Local_FanSetting <= 0)
-            {
-                Local_FanSetting = 0;
-            }
-            else
-            {
-                Local_FanSetting--;
-            }
-            
-        }
-        else if (keyinput == '8')
-        {
-            // Fan up
-            if (Local_FanSetting >= 3)
-            {
-                Local_FanSetting = 3;
-            }
-            else
-            {
-                Local_FanSetting++;
-            }
-        }
-        else if (keyinput == 'C')
-        {
-            // Fan off
-            Local_FanSetting = 0;
-            // Cooler off
-            Local_CoolerSetting = 0;
-        }
-        else if (keyinput == '*')
-        {
-            // Cooler down
-            if (Local_CoolerSetting <= 0)
-            {
-                Local_CoolerSetting = 0;
-            }
-            else
-            {
-                Local_CoolerSetting--;
-            }
-        }
-        else if (keyinput == '0')
-        {
-            // Cooler up
-            if (Local_CoolerSetting >= 2)
-            {
-                Local_CoolerSetting = 2;
-            }
-            else if(Local_CoolerSetting == 0)
-            {
-                Local_CoolerSetting++;
-                if (Local_FanSetting == 0)
-                {
-                    Local_FanSetting++;
-                }                
-            }
-            else
-            {
-                Local_CoolerSetting++;
-            }
-        }
-        else if (keyinput == 'D')
-        {
-            // Cooler off
-            Local_CoolerSetting = 0;
-        }
-        else{}
+            case '2':
+                mainmenu_index++;
+                break;
 
-        Local_Update = true;
+            case '5':
+                mainmenu_index--;
+                break;
+
+            case '6':
+                localSetting.setPoint += 0.5;
+                break;
+
+            case '4':
+                localSetting.setPoint -= 0.5;
+                break;
+
+            case '7':
+                // Fan setting down
+                if (localSetting.fanSetting <= 0)
+                {
+                    localSetting.fanSetting = 0;
+                }
+                else
+                {
+                    localSetting.fanSetting--;
+                }
+                break;
+
+            case '8':
+                // Fan setting up
+                if (localSetting.fanSetting >= 3)
+                {
+                    localSetting.fanSetting = 3;
+                }
+                else
+                {
+                    localSetting.fanSetting++;
+                }
+                break;
+
+            case 'C':
+                // Turn off fan and cooler
+                localSetting.fanSetting = 0;
+                localSetting.coolerSetting = 0;
+                break;
+
+            case '*':
+                // Cooler setting down
+                if (localSetting.coolerSetting <= 0)
+                {
+                    localSetting.coolerSetting = 0;
+                }
+                else
+                {
+                    localSetting.coolerSetting--;
+                }
+                break;
+            
+            case '0':
+                // Cooler setting up
+                if (localSetting.coolerSetting >= 3)
+                {
+                    localSetting.coolerSetting = 3;
+                }
+                else
+                {
+                    localSetting.coolerSetting++;
+                }
+                break;
+
+            case 'D':
+                // Turn off cooler
+                localSetting.coolerSetting = 0;
+                break;
+
+            default:
+                break;
+        }
+
+        localSetting.update = true;
         BacklightTimer.restart();
     }
 
@@ -388,35 +377,35 @@ void loop()
     */
 
 
-    if (Local_Update && LastUpdate == !1)
+    if (localSetting.update && LastUpdate == !1)
     {
         // Serial.println("local");
-        Local_Update = false;
+        localSetting.update = false;
         LastUpdate = 1;
         
-        Global_CoolerSetting = Local_CoolerSetting;
-        Global_FanSetting = Local_FanSetting;
-        Global_TempSet = Local_TempSet;
+        currentSetting.coolerSetting = localSetting.coolerSetting;
+        currentSetting.fanSetting = localSetting.fanSetting;
+        currentSetting.setPoint = localSetting.setPoint;
         
-        Net_CoolerSetting = Local_CoolerSetting;
-        Net_FanSetting = Local_FanSetting;
-        Net_TempSet = Local_TempSet;
+        netSetting.coolerSetting = localSetting.coolerSetting;
+        netSetting.fanSetting = localSetting.fanSetting;
+        netSetting.setPoint = localSetting.setPoint;
 
         NetSendUpdate();
     }
-    else if (Net_Update && LastUpdate == !2)
+    else if (netSetting.update && LastUpdate == !2)
     {
         // Serial.println("Net");
-        Net_Update = false;
+        netSetting.update = false;
         LastUpdate = 2;
 
-        Global_CoolerSetting = Net_CoolerSetting;
-        Global_FanSetting = Net_FanSetting;
-        Global_TempSet = Net_TempSet;
+        currentSetting.coolerSetting = netSetting.coolerSetting;
+        currentSetting.fanSetting = netSetting.fanSetting;
+        currentSetting.setPoint = netSetting.setPoint;
 
-        Local_CoolerSetting = Net_CoolerSetting;
-        Local_FanSetting = Net_FanSetting;
-        Local_TempSet = Net_TempSet;
+        localSetting.coolerSetting = netSetting.coolerSetting;
+        localSetting.fanSetting = netSetting.fanSetting;
+        localSetting.setPoint = netSetting.setPoint;
         
     }
     else
@@ -426,9 +415,9 @@ void loop()
     
     //Convert temp to char arrays
     dtostrf(Global_TempCurrent,4,2,chartempcurrent);
-    dtostrf(Global_TempSet,4,2,chartempset);
-    sprintf(charfanset, "%d", Global_FanSetting);
-    sprintf(charcoolset, "%d", Global_CoolerSetting);
+    dtostrf(currentSetting.setPoint,4,2,chartempset);
+    sprintf(charfanset, "%d", currentSetting.fanSetting);
+    sprintf(charcoolset, "%d", currentSetting.coolerSetting);
 
     //Update set temp - LCD
     MainMenu[3].Lineone[11] = chartempset[0];
@@ -449,7 +438,7 @@ void loop()
         case 3:
 
 
-            if (Global_FanSetting == 0)
+            if (currentSetting.fanSetting == 0)
             {
                 MainMenu[3].Linetwo[0] = 'O';
                 MainMenu[3].Linetwo[1] = 'f';
@@ -464,14 +453,14 @@ void loop()
                 MainMenu[3].Linetwo[3] = charfanset[0];
             }
 
-            if (Global_CoolerSetting == 0)
+            if (currentSetting.coolerSetting == 0)
             {
                 MainMenu[3].Linetwo[8] = 'O';
                 MainMenu[3].Linetwo[9] = 'f';
                 MainMenu[3].Linetwo[10] = 'f';
                 MainMenu[3].Linetwo[11] = ' ';
             }
-            else if (Global_CoolerSetting == 1)            
+            else if (currentSetting.coolerSetting == 1)            
             {
                 MainMenu[3].Linetwo[8] = 'A';
                 MainMenu[3].Linetwo[9] = 'u';
@@ -601,20 +590,20 @@ void TempController()
     int _Cset = 0;
     while (1)
     {
-        if (TempController_Metro.check() == 1 && Global_CoolerSetting == 1)
+        if (TempController_Metro.check() == 1 && currentSetting.coolerSetting == 1)
         {
-            if (Global_TempCurrent > Global_TempSet && CoolerOffTime_Metro.check() == 1)
+            if (Global_TempCurrent > currentSetting.setPoint && CoolerOffTime_Metro.check() == 1)
             {
                 // Turn on
-                PowerController(Global_FanSetting,1);
+                PowerController(currentSetting.fanSetting,1);
                 _Cset = 1;
                 Delay_reset = false;
                 CoolerOffTime_Metro.interval(CoolerDelayTime);
             }
-            else if (Global_TempCurrent < Global_TempSet && Delay_reset == false)
+            else if (Global_TempCurrent < currentSetting.setPoint && Delay_reset == false)
             {
                 // Turn off
-                PowerController(Global_FanSetting,0);
+                PowerController(currentSetting.fanSetting,0);
                 CoolerOffTime_Metro.reset();
                 _Cset = 0;
                 Delay_reset = true;
@@ -622,17 +611,17 @@ void TempController()
             else
             {
                 // Serial.println("else");
-                PowerController(Global_FanSetting,_Cset);
+                PowerController(currentSetting.fanSetting,_Cset);
             }
             TempController_Metro.reset();
         }
-        else if (Global_CoolerSetting == 2)
+        else if (currentSetting.coolerSetting == 2)
         {
-            PowerController(Global_FanSetting, 1);
+            PowerController(currentSetting.fanSetting, 1);
         }
-        else if (Global_CoolerSetting == 0)
+        else if (currentSetting.coolerSetting == 0)
         {
-            PowerController(Global_FanSetting, 0);
+            PowerController(currentSetting.fanSetting, 0);
         }
     } 
 }
@@ -663,7 +652,7 @@ void NetSendUpdate()
         NetTempDelay.reset();
 
         // Update set temp
-        dtostrf(Global_TempSet,4,2,chartempset);
+        dtostrf(currentSetting.setPoint,4,2,chartempset);
         strcpy(_NetSend, "set temps ");
         strcat(_NetSend, chartempset);
         Serial1.println(_NetSend);
@@ -672,7 +661,7 @@ void NetSendUpdate()
 
         // Update cooler setting
         strcpy(_NetSend, "set auto ");
-        sprintf(charcoolset, "%d", Global_CoolerSetting);
+        sprintf(charcoolset, "%d", currentSetting.coolerSetting);
         strcat(_NetSend, charcoolset);
         // _NetSend = "set auto ";
         Serial1.println(_NetSend);
@@ -681,7 +670,7 @@ void NetSendUpdate()
 
         // Update fan setting
         strcpy(_NetSend, "set fan ");
-        sprintf(charfanset, "%d", Global_FanSetting);
+        sprintf(charfanset, "%d", currentSetting.fanSetting);
         strcat(_NetSend, charfanset);
         Serial1.println(_NetSend);
     }
@@ -728,36 +717,36 @@ void serialEvent1()
             charint[3] = rawcharin[7];
             charint[4] = rawcharin[8];
 
-            Net_TempSet = atof(charint);
+            netSetting.setPoint = atof(charint);
             Serial.print("temp=");
-            Serial.println(Net_TempSet);
+            Serial.println(netSetting.setPoint);
         }
         else if (strcmp(Action, "auto") == 0)
         {
-            Net_CoolerSetting = rawcharin[4] - '0';
-            if (Net_CoolerSetting == 1 && Global_FanSetting == 0)
+            netSetting.coolerSetting = rawcharin[4] - '0';
+            if (netSetting.coolerSetting == 1 && currentSetting.fanSetting == 0)
             {
-                Global_FanSetting = 1;
-                Net_FanSetting = 1;
+                currentSetting.fanSetting = 1;
+                netSetting.fanSetting = 1;
                 NetSendUpdate();
             }
             
         }
         else if (strcmp(Action, "fans") == 0)
         {
-            Net_FanSetting = rawcharin[4] - '0';
-            if (Net_FanSetting == 0)
+            netSetting.fanSetting = rawcharin[4] - '0';
+            if (netSetting.fanSetting == 0)
             {
                 // Serial.println("test");
-                Global_CoolerSetting = 0;
-                Net_CoolerSetting = 0;
+                currentSetting.coolerSetting = 0;
+                netSetting.coolerSetting = 0;
                 NetSendUpdate();
             }
             
         }
         else{}
-        // Serial.println(Net_FanSetting);
-        Net_Update = true;
+        // Serial.println(netSetting.fanSetting);
+        netSetting.update = true;
     }
     else
     {
@@ -778,8 +767,8 @@ void PowerController(int _FanSet, int _CoolSet)
         if (_FanSet < 1)
         {
             _FanSet = 1;
-            Global_FanSetting = 1;
-            Local_FanSetting = Global_FanSetting;
+            currentSetting.fanSetting = 1;
+            localSetting.fanSetting = currentSetting.fanSetting;
         }
     }
     else

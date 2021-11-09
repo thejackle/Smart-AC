@@ -9,7 +9,7 @@
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
 
-//Global variables
+// Global variables
     double Global_TempCurrent = 20.00;
     double Global_TempSet = 23.00;
     int Global_FanSetting = 0;
@@ -63,14 +63,14 @@
     // #define BacklightTime 99999999 // Test time
     Chrono BacklightTimer;
 
-//Temp get
+// Temp get
     void UpdateTemp();
     #define temp_pin 34
     OneWire TempWire(temp_pin);
     DallasTemperature Temp1_Sensor(&TempWire);
     Metro TempDelay = Metro(1000);
 
-//Temp control
+// Temp control
     void TempController();
     #define Controller_Time 1*1000
     #define CoolerDelayTime 5*60000
@@ -79,20 +79,20 @@
     Metro CoolerOffTime_Metro = Metro(100); //Short time for startup, removes delay
     bool Delay_reset = false;
 
-//Net update
+// Net update
     void NetUpdate_TempStat();
     void NetSendUpdate();
     Metro NetTempDelay = Metro(3000);
     #define NetConnect 2
 
-//Power controls
+// Power controls
     void PowerController(int _FanSet, int _CoolSet);
     #define fan_low 25
     #define fan_med 26
     #define fan_high 27
     #define cooler_pin 28
 
-//Segment display
+// Segment display
     DFRobot_LedDisplayModule SegmentDisplay = DFRobot_LedDisplayModule(Wire, 0x48);
     void UpdateSegment();
     Metro segmentDelay = Metro(1000);
@@ -108,7 +108,7 @@
 
 /********************************************************/
 
-//Menu Setup
+// Menu Setup
     #define Start_menu 1000
     #define menu_items 2
     #define menu_hiddenItems 2
@@ -200,7 +200,7 @@ Loop
 // Program start
 void setup(){
 
-    //Serial init
+    // Serial init
     Serial.begin(115200);
     Serial1.begin(115200);
     delay(500);
@@ -211,7 +211,7 @@ void setup(){
 
     Temp1_Sensor.begin();
 
-    //Set pins 
+    // Set pins 
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(temp_pin, INPUT);
     pinMode(NetConnect, 0);
@@ -222,13 +222,13 @@ void setup(){
     pinMode(fan_high, 1);
     pinMode(cooler_pin, 1);
     
-    //Init threads
+    // Init threads
     threads.addThread(HeartbeatLed,500);
     threads.addThread(TempController);
     threads.addThread(Backlight_set);
     threads.addThread(UpdateTemp);
 
-    //Fill in the menu
+    // Fill in the menu
     strcpy(MainMenu[0].Lineone, "Offset menu     ");
     strcpy(MainMenu[0].Linetwo, "Offset menu     ");
 
@@ -244,7 +244,7 @@ void setup(){
     strcpy(MainMenu[4].Lineone, "Set Temp        ");
     strcpy(MainMenu[4].Linetwo, "Current         ");
     
-    //Start the LCD
+    // Start the LCD
     lcd.init();
     lcd.backlight();
 
@@ -256,7 +256,7 @@ void setup(){
 
     // attachInterrupt(digitalPinToInterrupt(NetConnect),interuptdelay, HIGH);
 
-    //Show the start menu
+    // Show the start menu
     LCD_print();
     delay(Start_menu);
     mainmenu_index = 3;
@@ -271,27 +271,27 @@ void loop()
         // Serial.println(keyinput);
         if (keyinput == '2')
         {
-            mainmenu_index++;
             // up
+            mainmenu_index++;
         }
         else if (keyinput == '5')
         {
-            mainmenu_index--;
             // Down
+            mainmenu_index--;
         }
         else if (keyinput == '6')
         {
-            //increase
+            // Increase
             Local_TempSet += 0.5;
         }
         else if (keyinput == '4')
         {
-            // decreas
+            // Decreas
             Local_TempSet -= 0.5;        
         }
         else if (keyinput == '7')
         {
-            //Fan down
+            // Fan down
             if (Local_FanSetting <= 0)
             {
                 Local_FanSetting = 0;
@@ -304,7 +304,7 @@ void loop()
         }
         else if (keyinput == '8')
         {
-            //Fan up
+            // Fan up
             if (Local_FanSetting >= 3)
             {
                 Local_FanSetting = 3;
@@ -316,14 +316,14 @@ void loop()
         }
         else if (keyinput == 'C')
         {
-            //Fan off
+            // Fan off
             Local_FanSetting = 0;
-            //Cooler off
+            // Cooler off
             Local_CoolerSetting = 0;
         }
         else if (keyinput == '*')
         {
-            //Cooler down
+            // Cooler down
             if (Local_CoolerSetting <= 0)
             {
                 Local_CoolerSetting = 0;
@@ -335,7 +335,7 @@ void loop()
         }
         else if (keyinput == '0')
         {
-            //Cooler up
+            // Cooler up
             if (Local_CoolerSetting >= 2)
             {
                 Local_CoolerSetting = 2;
@@ -355,7 +355,7 @@ void loop()
         }
         else if (keyinput == 'D')
         {
-            //Cooler off
+            // Cooler off
             Local_CoolerSetting = 0;
         }
         else{}
@@ -364,12 +364,12 @@ void loop()
         BacklightTimer.restart();
     }
 
-    //if the index is greater than the items, reset it to the lowest menu item
+    // If the index is greater than the items, reset it to the lowest menu item
     if (mainmenu_index > menu_totalItems)
     {
         mainmenu_index = menu_hiddenItems + 1;
     }
-    //if the index is less than or equal to the number of hidden menus, reset it to the highest value
+    // If the index is less than or equal to the number of hidden menus, reset it to the highest value
     else if (mainmenu_index <= menu_hiddenItems)
     {
         mainmenu_index = menu_totalItems;
@@ -489,7 +489,7 @@ void loop()
         break;
         
         case 4:
-            //Update current temp - LCD
+            // Update current temp - LCD
             MainMenu[4].Linetwo[11] = chartempcurrent[0];
             MainMenu[4].Linetwo[12] = chartempcurrent[1];
             MainMenu[4].Linetwo[13] = chartempcurrent[2];
@@ -503,10 +503,10 @@ void loop()
 
     // delay(100);
 
-    //update current temp - net
+    // Update current temp - net
     NetUpdate_TempStat();
 
-    //update current temp - 7 segment display
+    // Update current temp - 7 segment display
     // SegmentDisplay.print4(Global_TempCurrent);
     // UpdateSegment();
 
@@ -605,7 +605,7 @@ void TempController()
         {
             if (Global_TempCurrent > Global_TempSet && CoolerOffTime_Metro.check() == 1)
             {
-                //turn on
+                // Turn on
                 PowerController(Global_FanSetting,1);
                 _Cset = 1;
                 Delay_reset = false;
@@ -613,7 +613,7 @@ void TempController()
             }
             else if (Global_TempCurrent < Global_TempSet && Delay_reset == false)
             {
-                //turn off
+                // Turn off
                 PowerController(Global_FanSetting,0);
                 CoolerOffTime_Metro.reset();
                 _Cset = 0;
@@ -771,7 +771,7 @@ void serialEvent1()
 
 void PowerController(int _FanSet, int _CoolSet)
 {
-    //controlls fan and cooler
+    // Controlls fan and cooler
     if (_CoolSet > 0)
     {
         digitalWrite(cooler_pin, 1);

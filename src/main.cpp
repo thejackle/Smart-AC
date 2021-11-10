@@ -90,6 +90,10 @@
     Metro coolerOffTimeMetro = Metro(100); //Short time for startup, removes delay
     bool Delay_reset = false;
 
+    #define COOLER_ON 2
+    #define COOLER_AUTO 1
+    #define DEVICE_OFF 0
+
 // Net update
     void NetUpdate_TempStat();
     void NetSendUpdate();
@@ -298,26 +302,14 @@ void loop()
 
             case '7':
                 // Fan setting down
-                if (localSetting.fanSetting <= 0)
-                {
-                    localSetting.fanSetting = 0;
-                }
-                else
-                {
-                    localSetting.fanSetting--;
-                }
+                if (localSetting.fanSetting <= 0){localSetting.fanSetting = 0;}
+                else{localSetting.fanSetting--;}
                 break;
 
             case '8':
                 // Fan setting up
-                if (localSetting.fanSetting >= 3)
-                {
-                    localSetting.fanSetting = 3;
-                }
-                else
-                {
-                    localSetting.fanSetting++;
-                }
+                if (localSetting.fanSetting >= 3){localSetting.fanSetting = 3;}
+                else{localSetting.fanSetting++;}
                 break;
 
             case 'C':
@@ -328,26 +320,14 @@ void loop()
 
             case '*':
                 // Cooler setting down
-                if (localSetting.coolerSetting <= 0)
-                {
-                    localSetting.coolerSetting = 0;
-                }
-                else
-                {
-                    localSetting.coolerSetting--;
-                }
+                if (localSetting.coolerSetting <= 0){localSetting.coolerSetting = 0;}
+                else{localSetting.coolerSetting--;}
                 break;
             
             case '0':
                 // Cooler setting up
-                if (localSetting.coolerSetting >= 3)
-                {
-                    localSetting.coolerSetting = 3;
-                }
-                else
-                {
-                    localSetting.coolerSetting++;
-                }
+                if (localSetting.coolerSetting >= 3){localSetting.coolerSetting = 3;}
+                else{localSetting.coolerSetting++;}
                 break;
 
             case 'D':
@@ -411,13 +391,15 @@ void loop()
         LastUpdate = NO_UPDATE;
     }
     
-    //Convert temp to char arrays
+    // Convert temp to char arrays
     dtostrf(Global_TempCurrent,4,2,charTempCurrent);
     dtostrf(currentSetting.setPoint,4,2,charTempSet);
+
+    // Convert setting to char array
     sprintf(charFanSetting, "%d", currentSetting.fanSetting);
     sprintf(charCoolSetting, "%d", currentSetting.coolerSetting);
 
-    //Update set temp - LCD
+    // Update set temp - LCD
     menu[3].Lineone[11] = charTempSet[0];
     menu[3].Lineone[12] = charTempSet[1];
     menu[3].Lineone[13] = charTempSet[2];
@@ -588,22 +570,22 @@ void TempController()
     int _Cset = 0;
     while (1)
     {
-        if (tempControllerMetro.check() == 1 && currentSetting.coolerSetting == 1)
+        if (tempControllerMetro.check() == 1 && currentSetting.coolerSetting == COOLER_ON)
         {
             if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimeMetro.check() == 1)
             {
                 // Turn on
-                PowerController(currentSetting.fanSetting,1);
-                _Cset = 1;
+                PowerController(currentSetting.fanSetting,COOLER_AUTO);
+                _Cset = COOLER_AUTO;
                 Delay_reset = false;
                 coolerOffTimeMetro.interval(COOLER_DELAY_TIME);
             }
             else if (Global_TempCurrent < currentSetting.setPoint && Delay_reset == false)
             {
                 // Turn off
-                PowerController(currentSetting.fanSetting,0);
+                PowerController(currentSetting.fanSetting,DEVICE_OFF);
                 coolerOffTimeMetro.reset();
-                _Cset = 0;
+                _Cset = DEVICE_OFF;
                 Delay_reset = true;
             }
             else
@@ -613,13 +595,13 @@ void TempController()
             }
             tempControllerMetro.reset();
         }
-        else if (currentSetting.coolerSetting == 2)
+        else if (currentSetting.coolerSetting == COOLER_ON)
         {
             PowerController(currentSetting.fanSetting, 1);
         }
-        else if (currentSetting.coolerSetting == 0)
+        else if (currentSetting.coolerSetting == DEVICE_OFF)
         {
-            PowerController(currentSetting.fanSetting, 0);
+            PowerController(currentSetting.fanSetting, DEVICE_OFF);
         }
     } 
 }
@@ -763,13 +745,13 @@ void PowerController(int _fanSet, int _coolSet)
     // Controlls fan and cooler
     if (_coolSet > 0)
     {
-        digitalWrite(COOLER_PIN, 1);
         if (_fanSet < 1)
         {
             _fanSet = 1;
             currentSetting.fanSetting = 1;
             localSetting.fanSetting = currentSetting.fanSetting;
         }
+        digitalWrite(COOLER_PIN, 1);
     }
     else
     {

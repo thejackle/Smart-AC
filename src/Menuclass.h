@@ -13,8 +13,6 @@ class Menuclass
 		Menuclass(int indexSize);
 		~Menuclass();
 		void test();
-		// String Lineone;
-		// String Linetwo;
 		char Lineone[16];
 		char Linetwo[16];
 		void increaseindex();

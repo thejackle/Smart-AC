@@ -57,15 +57,14 @@
     void HeartbeatLed(int _TimeDelay = 500); 
 
 // LCD setup
-#ifndef TESTBED
+#ifdef TESTBED
+    //DFrobot
+    LiquidCrystal_I2C lcd(0x20,16,2);
+#else
     //raspi
     LiquidCrystal_I2C lcd(0x27,16,2);
 #endif
 
-#ifdef TESTBED
-    //DFrobot
-    LiquidCrystal_I2C lcd(0x20,16,2);
-#endif
     void lcdPrint();
 
     #define UPDATE_DELAY 1
@@ -76,9 +75,14 @@
 
 
 // Backlight
-    void BacklightSet();
+
+#ifdef TESTBED
+    #define BACKLIGHT_TIME 99999999 // Test time
+#else
     #define BACKLIGHT_TIME 50000
-    // #define BACKLIGHT_TIME 99999999 // Test time
+#endif
+
+    void BacklightSet();
     Chrono backlightTimer;
 
 // Temp get
@@ -88,11 +92,15 @@
     DallasTemperature Temp1Sensor(&tempWire);
     Metro tempDelay = Metro(1000);
 
-// Temp control
-    void TempController();
-    #define CONTROLLER_TIME 1*1000
+// Temp contror
+#ifdef TESTBED
+    #define COOLER_DELAY_TIME 100 // Test time
+#else
     #define COOLER_DELAY_TIME 5*60000
-    // #define COOLER_DELAY_TIME 100 // Test time
+#endif
+
+    #define CONTROLLER_TIME 1*1000
+    void TempController();
     Metro tempControllerMetro = Metro(CONTROLLER_TIME);
     Metro coolerOffTimeMetro = Metro(100); //Short time for startup, removes delay
     bool Delay_reset = false;
@@ -147,10 +155,7 @@
 */
 
 /* Changes for testing
-    lcd screen
     disable segment diplay (loop)
-    change BACKLIGHT_TIME
-    change COOLER_DELAY_TIME
     comment test input temp
 */
 

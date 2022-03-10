@@ -8,6 +8,7 @@
 #include <DallasTemperature.h>
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
+#include <serialCommands.h>
 
 #define TESTBED
 
@@ -668,18 +669,7 @@ void NetSendUpdate()
     }
 }
 
-// Is this needed?
-/*
-void InteruptDelay()
-{
-    delay(100);
-    while (Serial1.available())
-    {
-        Serial1.read();
-    }
-    
-}
-*/
+
 void serialEvent1()
 {
     // delay(2000);

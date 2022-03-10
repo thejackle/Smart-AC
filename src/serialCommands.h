@@ -1,3 +1,4 @@
+// Request and acknowledge
 #define SER_REQ 0x00
 #define SER_ACK 0x01
 

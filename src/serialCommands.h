@@ -4,6 +4,12 @@
 #define SER_GETTEMP 0x05
 #define SER_SETTEMP 0x06
 
+#define SER_GETFAN 0x07
+#define SER_SETFAN 0x08
+
+#define SER_GETCOOL 0x09
+#define SER_SETCOOL 0x0A
+
 #define SER_FAN0 0x10
 #define SER_FAN1 0x11
 #define SER_FAN2 0x12

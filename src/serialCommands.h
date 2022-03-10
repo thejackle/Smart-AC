@@ -21,3 +21,4 @@
 #define SER_COOL0 0x20
 #define SER_COOL1 0x21
 #define SER_COOL2 0x22
+

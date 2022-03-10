@@ -9,6 +9,8 @@
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
 
+#define TESTBED
+
 
 // Global variables
     double Global_TempCurrent = 20.00;
@@ -55,10 +57,15 @@
     void HeartbeatLed(int _TimeDelay = 500); 
 
 // LCD setup
+#ifndef TESTBED
     //raspi
     LiquidCrystal_I2C lcd(0x27,16,2);
+#endif
+
+#ifdef TESTBED
     //DFrobot
-    // LiquidCrystal_I2C lcd(0x20,16,2);
+    LiquidCrystal_I2C lcd(0x20,16,2);
+#endif
     void lcdPrint();
 
     #define UPDATE_DELAY 1

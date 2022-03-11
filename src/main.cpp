@@ -9,6 +9,9 @@
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
 
+#include <serialCommands.h>
+#include <Pins.h>
+
 #define TESTBED
 
 
@@ -87,7 +90,6 @@
 
 // Temp get
     void UpdateTemp();
-    #define TEMPSENSOR_PIN 34
     OneWire tempWire(TEMPSENSOR_PIN);
     DallasTemperature Temp1Sensor(&tempWire);
     Metro tempDelay = Metro(1000);

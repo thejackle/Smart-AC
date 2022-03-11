@@ -1,0 +1,2 @@
+
+#define TEMPSENSOR_PIN 34

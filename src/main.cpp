@@ -115,14 +115,9 @@
     void NetUpdate_TempStat();
     void NetSendUpdate();
     Metro netTempDelay = Metro(3000);
-    #define NETCONNECT 2
 
 // Power controls
     void PowerController(int _FanSet, int _CoolSet);
-    #define FAN_LOW 25
-    #define FAN_MEDIUM 26
-    #define FAN_HIGH 27
-    #define COOLER_PIN 28
 
 // Segment display
     DFRobot_LedDisplayModule SegmentDisplay = DFRobot_LedDisplayModule(Wire, 0x48);
@@ -574,7 +569,9 @@ void UpdateTemp()
         }
         else
         {
-            // Global_TempCurrent = map(analogRead(23),0,1023,-35,90);
+            #ifdef TESTBED
+            Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,-35,90);
+            #endif
         }
     }
 }

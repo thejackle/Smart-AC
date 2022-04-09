@@ -3,26 +3,21 @@
 #include <TeensyThreads.h>
 #include <Keypad.h>
 #include <Menuclass.h>
-#include <Metro.h>
+//#include <Metro.h>
 #include <Chrono.h>
 #include <DallasTemperature.h>
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
+#include <SD.h>
 
-#include <serialCommands.h>
+// Custome header files
+#include <SerialCommands.h>
 #include <Pins.h>
+#include <Settings.h>
 
 #define TESTBED
 
-
-// Global variables
-    double Global_TempCurrent = 20.00;
-
-    #define LOCAL_UPDATE 1
-    #define NET_UPDATE 2
-    #define NO_UPDATE 0
-    int LastUpdate = 0;
-    
+// Create a stuct to store the settings
     struct Settings
     {
         double setPoint = 23.0;
@@ -42,6 +37,10 @@
     Settings localSetting;
     Settings netSetting;
     Settings currentSetting;
+
+// Global variables
+    double Global_TempCurrent = 20.00;
+    int LastUpdate = 0;
 
 // Keypad setup
     #define COL_NUM 4
@@ -68,53 +67,42 @@
     LiquidCrystal_I2C lcd(0x27,16,2);
 #endif
 
-    void lcdPrint();
-
-    #define UPDATE_DELAY 1
-    Metro lcdUpdate = Metro(UPDATE_DELAY);
+    void LcdPrint();
+    //Metro lcdUpdate = Metro(UPDATE_DELAY);
+    Chrono lcdUpdate;
     unsigned long lastUpdateLCD;
     char tempFrameOne[16]{"               "};
     char tempFrameTwo[16]{"               "};
 
 
 // Backlight
-
-#ifdef TESTBED
-    #define BACKLIGHT_TIME 99999999 // Test time
-#else
-    #define BACKLIGHT_TIME 50000
-#endif
-
     void BacklightSet();
     Chrono backlightTimer;
 
 // Temp get
-    void UpdateTemp();
+    void UpdateCurrentTemp();
     OneWire tempWire(TEMPSENSOR_PIN);
     DallasTemperature Temp1Sensor(&tempWire);
-    Metro tempDelay = Metro(1000);
+    Chrono tempDelay;
+    //Metro tempDelay = Metro(1000);
 
-// Temp contror
-#ifdef TESTBED
-    #define COOLER_DELAY_TIME 100 // Test time
-#else
-    #define COOLER_DELAY_TIME 5*60000
-#endif
-
-    #define CONTROLLER_TIME 1*1000
+// Temp controller
     void TempController();
-    Metro tempControllerMetro = Metro(CONTROLLER_TIME);
-    Metro coolerOffTimeMetro = Metro(100); //Short time for startup, removes delay
+    //Metro tempControllerMetro = Metro(CONTROLLER_TIME);
+    // Delay before checking if the temperature is under set point
+    Chrono tempCheckTimer;
+    //Short time for startup, removes delay
+    //Metro coolerOffTimeMetro = Metro(100);
+    // Delay after cooler has turned off to prevent the cooler from rapidly turning on and off
+    Chrono coolerOffTimer;
     bool Delay_reset = false;
 
-    #define COOLER_ON 2
-    #define COOLER_AUTO 1
-    #define DEVICE_OFF 0
 
 // Net update
     void NetUpdate_TempStat();
     void NetSendUpdate();
-    Metro netTempDelay = Metro(3000);
+    //Metro netTempDelay = Metro(3000);
+    Chrono netTempDelay;
 
 // Power controls
     void PowerController(int _FanSet, int _CoolSet);
@@ -122,7 +110,9 @@
 // Segment display
     DFRobot_LedDisplayModule SegmentDisplay = DFRobot_LedDisplayModule(Wire, 0x48);
     void UpdateSegment();
-    Metro segmentDelay = Metro(1000);
+    //Metro segmentDelay = Metro(1000);
+    #define SEGMENT_DELAY 1000
+    Chrono segmentDelay;
 
 // Temp
     char charTempSet[5];
@@ -130,24 +120,23 @@
     char charFanSetting[1];
     char charCoolSetting[1];
     void InteruptDelay();
-    
+
+// Char copy
+    void CharCpy(char* _charOneInput, char* _charTwoInput[], int offset);
+    void CharCpy(char* _charOneInput, char _charTwoInput[], int offset);
+    void CharCpy(char* _charOneInput, const char _charTwoInput[], int offset);
 
 /********************************************************/
 
 // Menu Setup
-    #define START_MENU 1000
-    #define MENU_ITEMS 2
-    #define MENU_HIDDEN_ITEMS 2
-    #define MENU_TOTAL_ITEMS MENU_HIDDEN_ITEMS + MENU_ITEMS
-    Menuclass menu[MENU_ITEMS + MENU_HIDDEN_ITEMS + 1]{0,0,0,0,3};
-    int menuIndex = 1;
+    // Menuclass menu[MENU_ITEMS + MENU_HIDDEN_ITEMS + 1]{0,0,0,0,3};
+    Menuclass menu[MENU_ITEMS + MENU_HIDDEN_ITEMS]{0,0,0};
+    int menuIndex = 0;
 /*
     Menu items
-    0. Blank for offset
-    1. Start menu - index 0 - Hidden
-    2. pop-up - index 0 - Hidden
-    3. Main screen - index 0
-    4. Current temp
+    0. Start menu - Hidden
+    1. Main screen
+    2. Current temp
 
 */
 
@@ -159,8 +148,10 @@
 /*************************************************************************************************************************/
 
 // Program version
-#define SW_Version "Smart Air   V1.0"
+#define SW_Version "Smart Air   V2.X"
 /*
+Bug's
+
 modular approch - any IO can be changed/modifed without affecting main program
 Define
     Global variables
@@ -239,54 +230,55 @@ void setup(){
     pinMode(NETCONNECT, 0);
     pinMode(33, INPUT);
 
-    pinMode(FAN_LOW, 1);
-    pinMode(FAN_MEDIUM, 1);
-    pinMode(FAN_HIGH, 1);
+    pinMode(FAN_LOW_PIN, 1);
+    pinMode(FAN_MEDIUM_PIN, 1);
+    pinMode(FAN_HIGH_PIN, 1);
     pinMode(COOLER_PIN, 1);
     
     // Init threads
     threads.addThread(HeartbeatLed,500);
     threads.addThread(TempController);
     threads.addThread(BacklightSet);
-    threads.addThread(UpdateTemp);
+    threads.addThread(UpdateCurrentTemp);
 
     // Fill in the menu
-    strcpy(menu[0].Lineone, "Offset menu     ");
-    strcpy(menu[0].Linetwo, "Offset menu     ");
-
-    strcpy(menu[1].Lineone, SW_Version);
-    strcpy(menu[1].Linetwo, "Conditioner     ");
-
-    strcpy(menu[2].Lineone, "Hidden line one ");
-    strcpy(menu[2].Linetwo, "Hidden line one ");
-
-    strcpy(menu[3].Lineone, "Set Temp        ");
-    strcpy(menu[3].Linetwo, "Off     Off     ");
     
-    strcpy(menu[4].Lineone, "Set Temp        ");
-    strcpy(menu[4].Linetwo, "Current         ");
+    strcpy(menu[0].Lineone, SW_Version);
+    strcpy(menu[0].Linetwo, "Conditioner     ");
+
+    strcpy(menu[1].Lineone, "Set Temp        ");
+    strcpy(menu[1].Linetwo, "Off     Off     ");
+    
+    strcpy(menu[2].Lineone, "Set Temp        ");
+    strcpy(menu[2].Linetwo, "Current         ");
     
     // Start the LCD
     lcd.init();
     lcd.backlight();
 
-    tempDelay.reset();
+    // Setup SD logging
+    //SD.begin(44);
+    //SD.mkdir("test");
+
+    // Is this needed??
+    tempDelay.restart();
     backlightTimer.restart();
-    netTempDelay.reset();
-    coolerOffTimeMetro.reset();
-    segmentDelay.reset();
+    netTempDelay.restart();
+    coolerOffTimer.restart();
+    segmentDelay.restart();
 
     // attachInterrupt(digitalPinToInterrupt(NETCONNECT),InteruptDelay, HIGH);
 
     // Show the start menu
-    lcdPrint();
+    LcdPrint();
     delay(START_MENU);
-    menuIndex = 3;
+    menuIndex = 1;
 }
 
 /*************************************************************************************************************************/
 void loop()
-{    
+{
+    // Get local inputs from the keypad
     char keyinput = keyInput.getKey();
     if (keyinput)
     {
@@ -353,14 +345,14 @@ void loop()
     }
 
     // If the index is greater than the items, reset it to the lowest menu item
-    if (menuIndex > MENU_TOTAL_ITEMS)
+    if (menuIndex >= MENU_TOTAL_ITEMS)
     {
-        menuIndex = MENU_HIDDEN_ITEMS + 1;
+        menuIndex = MENU_HIDDEN_ITEMS;
     }
     // If the index is less than or equal to the number of hidden menus, reset it to the highest value
-    else if (menuIndex <= MENU_HIDDEN_ITEMS)
+    else if (menuIndex < MENU_HIDDEN_ITEMS)
     {
-        menuIndex = MENU_TOTAL_ITEMS;
+        menuIndex = MENU_TOTAL_ITEMS - 1;
     }
     
     /*
@@ -409,70 +401,42 @@ void loop()
     sprintf(charCoolSetting, "%d", currentSetting.coolerSetting);
 
     // Update set temp - LCD
-    menu[3].Lineone[11] = charTempSet[0];
-    menu[3].Lineone[12] = charTempSet[1];
-    menu[3].Lineone[13] = charTempSet[2];
-    menu[3].Lineone[14] = charTempSet[3];
-    menu[3].Lineone[15] = charTempSet[4];
-    
-    menu[4].Lineone[11] = charTempSet[0];
-    menu[4].Lineone[12] = charTempSet[1];
-    menu[4].Lineone[13] = charTempSet[2];
-    menu[4].Lineone[14] = charTempSet[3];
-    menu[4].Lineone[15] = charTempSet[4];
-
+    CharCpy(&menu[1].Lineone[11], &charTempSet[0], 0);
+    CharCpy(&menu[2].Lineone[11], &charTempSet[0], 0);
 
     switch (menuIndex)
     {        
-        case 3:
+        case 1:
 
 
             if (currentSetting.fanSetting == 0)
             {
-                menu[3].Linetwo[0] = 'O';
-                menu[3].Linetwo[1] = 'f';
-                menu[3].Linetwo[2] = 'f';
-                menu[3].Linetwo[3] = ' ';
+                CharCpy(&menu[1].Linetwo[0], "Off  ", 0);
             }
             else
             {
-                menu[3].Linetwo[0] = 'F';
-                menu[3].Linetwo[1] = 'a';
-                menu[3].Linetwo[2] = 'n';
-                menu[3].Linetwo[3] = charFanSetting[0];
+                CharCpy(&menu[1].Linetwo[0], "Fan ", 0);
+                menu[1].Linetwo[4] = charFanSetting[0];
             }
 
             if (currentSetting.coolerSetting == 0)
             {
-                menu[3].Linetwo[8] = 'O';
-                menu[3].Linetwo[9] = 'f';
-                menu[3].Linetwo[10] = 'f';
-                menu[3].Linetwo[11] = ' ';
+                CharCpy(&menu[1].Linetwo[8], "Off  ", 0);
             }
             else if (currentSetting.coolerSetting == 1)            
             {
-                menu[3].Linetwo[8] = 'A';
-                menu[3].Linetwo[9] = 'u';
-                menu[3].Linetwo[10] = 't';
-                menu[3].Linetwo[11] = 'o';
+                CharCpy(&menu[1].Linetwo[8], "Auto ", 0);
             }
             else
             {
-                menu[3].Linetwo[8] = 'C';
-                menu[3].Linetwo[9] = 'o';
-                menu[3].Linetwo[10] = 'o';
-                menu[3].Linetwo[11] = 'l';
+                CharCpy(&menu[1].Linetwo[8], "Cool ", 0);
             }
             
         break;
         
-        case 4:
+        case 2:
             // Update current temp - LCD
-            menu[4].Linetwo[11] = charTempCurrent[0];
-            menu[4].Linetwo[12] = charTempCurrent[1];
-            menu[4].Linetwo[13] = charTempCurrent[2];
-            menu[4].Linetwo[14] = charTempCurrent[3];
-            menu[4].Linetwo[15] = charTempCurrent[4];
+            CharCpy(&menu[2].Linetwo[11], &charTempCurrent[0], 0);
         break;
 
         default:
@@ -489,7 +453,7 @@ void loop()
     // UpdateSegment();
 
     // Print LCD screen (no flashing)
-    lcdPrint();
+    LcdPrint();
 }
 
 /*************************************************************************************************************************/
@@ -505,16 +469,16 @@ void HeartbeatLed(int _TimeDelay)
     }    
 }
 
-void lcdPrint()
+void LcdPrint()
 {
     char _lineOneIn[16];
     char _lineTwoIn[16];
     strcpy(_lineOneIn, menu[menuIndex].Lineone);
     strcpy(_lineTwoIn, menu[menuIndex].Linetwo);
 
-    if(lcdUpdate.check() == 1){
+    if(lcdUpdate.hasPassed(LCD_UPDATE_DELAY) == 1){
 
-        lcdUpdate.reset(); 
+        lcdUpdate.restart(); 
 
         for (unsigned int i = 0; i < sizeof(tempFrameOne) ; i++)
         {
@@ -538,6 +502,43 @@ void lcdPrint()
     }
 }
 
+// Insert a string into a char array
+
+void CharCpy(char* _charOneInput, char* _charTwoInput[], int offset)
+{
+    for (uint i = 0; i < strlen(*_charTwoInput); i++)
+    {
+        _charOneInput[i + offset] = *_charTwoInput[i];
+    }
+}
+
+void CharCpy(char* _charOneInput, char _charTwoInput[], int offset)
+{
+    for (uint i = 0; i < strlen(_charTwoInput); i++)
+    {
+        _charOneInput[i + offset] = _charTwoInput[i];
+    }
+}
+
+void CharCpy(char* _charOneInput, const char _charTwoInput[], int offset)
+{
+    for (uint i = 0; i < strlen(_charTwoInput); i++)
+    {
+        _charOneInput[i + offset] = _charTwoInput[i];
+    }
+}
+
+
+// Update the seven segment display
+void UpdateSegment()
+{
+    if(segmentDelay.hasPassed(SEGMENT_DELAY) == 1)
+    {
+        SegmentDisplay.print4(Global_TempCurrent);
+        segmentDelay.restart();
+    }
+}
+
 // Turn the backlight off when the timer has expired
 void BacklightSet()
 {
@@ -554,23 +555,24 @@ void BacklightSet()
     }
 }
 
-void UpdateTemp()
+// Read the current temperature
+void UpdateCurrentTemp()
 {
     delay(1000);
     while (1)
     {
-        if (tempDelay.check() == 1 && Temp1Sensor.getDeviceCount() > 0)
+        if (tempDelay.hasPassed(TEMP_DELAY) == 1 && Temp1Sensor.getDeviceCount() > 0)
         {
             Temp1Sensor.requestTemperatures();
             delay(100);
             Global_TempCurrent = Temp1Sensor.getTempCByIndex(0);
             // Global_TempCurrent = 27;
-            tempDelay.reset();
+            tempDelay.restart();
         }
         else
         {
             #ifdef TESTBED
-            Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,-35,90);
+                Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,-35,90);
             #endif
         }
     }
@@ -581,21 +583,22 @@ void TempController()
     int _Cset = 0;
     while (1)
     {
-        if (tempControllerMetro.check() == 1 && currentSetting.coolerSetting == COOLER_ON)
+        // Auto temperature control loop
+        if (tempCheckTimer.hasPassed(CONTROLLER_TIME) == 1 && currentSetting.coolerSetting == COOLER_AUTO)
         {
-            if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimeMetro.check() == 1)
+            if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimer.hasPassed(100) == 1)
             {
                 // Turn on
                 PowerController(currentSetting.fanSetting,COOLER_AUTO);
                 _Cset = COOLER_AUTO;
                 Delay_reset = false;
-                coolerOffTimeMetro.interval(COOLER_DELAY_TIME);
+                coolerOffTimer.stop();
             }
             else if (Global_TempCurrent < currentSetting.setPoint && Delay_reset == false)
             {
                 // Turn off
                 PowerController(currentSetting.fanSetting,DEVICE_OFF);
-                coolerOffTimeMetro.reset();
+                coolerOffTimer.restart();
                 _Cset = DEVICE_OFF;
                 Delay_reset = true;
             }
@@ -604,12 +607,14 @@ void TempController()
                 // Serial.println("else");
                 PowerController(currentSetting.fanSetting,_Cset);
             }
-            tempControllerMetro.reset();
+            tempCheckTimer.restart();
         }
+        // On cooler control loop
         else if (currentSetting.coolerSetting == COOLER_ON)
         {
             PowerController(currentSetting.fanSetting, 1);
         }
+        // Turn off devices
         else if (currentSetting.coolerSetting == DEVICE_OFF)
         {
             PowerController(currentSetting.fanSetting, DEVICE_OFF);
@@ -617,10 +622,88 @@ void TempController()
     } 
 }
 
+void PowerController(int _fanSet, int _coolSet)
+{
+    // Controlls fan and cooler
+    if (_coolSet > 0)
+    {
+        if (_fanSet < 1)
+        {
+            _fanSet = 1;
+            currentSetting.fanSetting = 1;
+            localSetting.fanSetting = currentSetting.fanSetting;
+        }
+        digitalWrite(COOLER_PIN, 1);
+    }
+    else
+    {
+        digitalWrite(COOLER_PIN, 0);
+    }
+    
+    switch (_fanSet)
+    {
+    case DEVICE_OFF:
+        digitalWrite(FAN_LOW_PIN, 0);
+        digitalWrite(FAN_MEDIUM_PIN, 0);
+        digitalWrite(FAN_HIGH_PIN, 0);
+        digitalWrite(COOLER_PIN, 0);
+        break;
+
+    case FAN_LOW:
+        digitalWrite(FAN_LOW_PIN, 1);
+        digitalWrite(FAN_MEDIUM_PIN, 0);
+        digitalWrite(FAN_HIGH_PIN, 0);
+        break;
+    
+    case FAN_MEDIUM:
+        digitalWrite(FAN_LOW_PIN, 0);
+        digitalWrite(FAN_MEDIUM_PIN, 1);
+        digitalWrite(FAN_HIGH_PIN, 0);
+        break;
+        
+    case FAN_HIGH:
+        digitalWrite(FAN_LOW_PIN, 0);
+        digitalWrite(FAN_MEDIUM_PIN, 0);
+        digitalWrite(FAN_HIGH_PIN, 1);
+        break;
+
+    default:
+        break;
+    }
+    
+    
+}
+
+/*********************************** Coms *******************************************/
+
+/*
+    Get
+        Master - request variable
+        Secondary - send varable
+        Master - acknowledge
+    
+    Set
+        Master - send update command
+        Secondary - acknowledge
+        Master - send variable
+        Secondary - acknowledge
+
+*/
+
+void NetCommand()
+{
+    if (digitalRead(NETCONNECT) == 1)
+    {
+        
+    }
+    
+}
+
+
 void NetUpdate_TempStat()
 {
 
-    if (digitalRead(NETCONNECT) && netTempDelay.check() == 1)
+    if (digitalRead(NETCONNECT) && netTempDelay.hasPassed(NET_UPDATE_DELAY) == 1)
     {
         char _NetSend[16] = "set tempc ";
 
@@ -628,7 +711,7 @@ void NetUpdate_TempStat()
         strcat(_NetSend, " ");
         Serial1.println(_NetSend);
         Serial.println(_NetSend);
-        netTempDelay.reset();
+        netTempDelay.restart();
     }
 }
 
@@ -640,7 +723,7 @@ void NetSendUpdate()
     if (digitalRead(NETCONNECT) == 1)
     {
         // Serial.println("temps");
-        netTempDelay.reset();
+        netTempDelay.restart();
 
         // Update set temp
         dtostrf(currentSetting.setPoint,4,2,charTempSet);
@@ -667,18 +750,6 @@ void NetSendUpdate()
     }
 }
 
-// Is this needed?
-/*
-void InteruptDelay()
-{
-    delay(100);
-    while (Serial1.available())
-    {
-        Serial1.read();
-    }
-    
-}
-*/
 void serialEvent1()
 {
     // delay(2000);
@@ -751,64 +822,4 @@ void serialEvent1()
     }
 }
 
-void PowerController(int _fanSet, int _coolSet)
-{
-    // Controlls fan and cooler
-    if (_coolSet > 0)
-    {
-        if (_fanSet < 1)
-        {
-            _fanSet = 1;
-            currentSetting.fanSetting = 1;
-            localSetting.fanSetting = currentSetting.fanSetting;
-        }
-        digitalWrite(COOLER_PIN, 1);
-    }
-    else
-    {
-        digitalWrite(COOLER_PIN, 0);
-    }
-    
-    switch (_fanSet)
-    {
-    case 0:
-        digitalWrite(FAN_LOW, 0);
-        digitalWrite(FAN_MEDIUM, 0);
-        digitalWrite(FAN_HIGH, 0);
-        digitalWrite(COOLER_PIN, 0);
-        break;
-
-    case 1:
-        digitalWrite(FAN_LOW, 1);
-        digitalWrite(FAN_MEDIUM, 0);
-        digitalWrite(FAN_HIGH, 0);
-        break;
-    
-    case 2:
-        digitalWrite(FAN_LOW, 0);
-        digitalWrite(FAN_MEDIUM, 1);
-        digitalWrite(FAN_HIGH, 0);
-        break;
-        
-    case 3:
-        digitalWrite(FAN_LOW, 0);
-        digitalWrite(FAN_MEDIUM, 0);
-        digitalWrite(FAN_HIGH, 1);
-        break;
-
-    default:
-        break;
-    }
-    
-    
-}
-
-void UpdateSegment()
-{
-    if(segmentDelay.check() == 1)
-    {
-        SegmentDisplay.print4(Global_TempCurrent);
-        segmentDelay.reset();
-    }
-}
 

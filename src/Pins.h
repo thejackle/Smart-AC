@@ -7,9 +7,12 @@
 #define NETCONNECT 2
 
 // Power relay output
-#define FAN_LOW 25
-#define FAN_MEDIUM 26
-#define FAN_HIGH 27
+#define FAN_LOW_PIN 25
+#define FAN_MEDIUM_PIN 26
+#define FAN_HIGH_PIN 27
 #define COOLER_PIN 28
 
 #define TEST_TEMPIN 23
+
+// SD pins
+#define SD_PIN 

@@ -2,8 +2,6 @@
 #include <LiquidCrystal_I2C.h>
 #include <TeensyThreads.h>
 #include <Keypad.h>
-#include <Menuclass.h>
-//#include <Metro.h>
 #include <Chrono.h>
 #include <DallasTemperature.h>
 #include <OneWire.h>
@@ -11,6 +9,7 @@
 #include <SD.h>
 
 // Custome header files
+#include <Menuclass.h>
 #include <SerialCommands.h>
 #include <Pins.h>
 #include <Settings.h>
@@ -31,7 +30,6 @@
             fanSetting = newSettings.fanSetting;
             coolerSetting = newSettings.coolerSetting;
         }
-
     };
 
     Settings localSetting;
@@ -84,24 +82,20 @@
     OneWire tempWire(TEMPSENSOR_PIN);
     DallasTemperature Temp1Sensor(&tempWire);
     Chrono tempDelay;
-    //Metro tempDelay = Metro(1000);
 
 // Temp controller
     void TempController();
-    //Metro tempControllerMetro = Metro(CONTROLLER_TIME);
     // Delay before checking if the temperature is under set point
     Chrono tempCheckTimer;
-    //Short time for startup, removes delay
-    //Metro coolerOffTimeMetro = Metro(100);
     // Delay after cooler has turned off to prevent the cooler from rapidly turning on and off
     Chrono coolerOffTimer;
     bool Delay_reset = false;
 
 
 // Net update
-    void NetUpdate_TempStat();
+    // void NetUpdate_TempStat();
+    void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting);
     void NetSendUpdate();
-    //Metro netTempDelay = Metro(3000);
     Chrono netTempDelay;
 
 // Power controls
@@ -110,8 +104,6 @@
 // Segment display
     DFRobot_LedDisplayModule SegmentDisplay = DFRobot_LedDisplayModule(Wire, 0x48);
     void UpdateSegment();
-    //Metro segmentDelay = Metro(1000);
-    #define SEGMENT_DELAY 1000
     Chrono segmentDelay;
 
 // Temp
@@ -129,7 +121,6 @@
 /********************************************************/
 
 // Menu Setup
-    // Menuclass menu[MENU_ITEMS + MENU_HIDDEN_ITEMS + 1]{0,0,0,0,3};
     Menuclass menu[MENU_ITEMS + MENU_HIDDEN_ITEMS]{0,0,0};
     int menuIndex = 0;
 /*
@@ -137,7 +128,6 @@
     0. Start menu - Hidden
     1. Main screen
     2. Current temp
-
 */
 
 /* Changes for testing
@@ -227,13 +217,13 @@ void setup(){
     // Set pins 
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(TEMPSENSOR_PIN, INPUT);
-    pinMode(NETCONNECT, 0);
+    pinMode(NETCONNECT, INPUT);
     pinMode(33, INPUT);
 
-    pinMode(FAN_LOW_PIN, 1);
-    pinMode(FAN_MEDIUM_PIN, 1);
-    pinMode(FAN_HIGH_PIN, 1);
-    pinMode(COOLER_PIN, 1);
+    pinMode(FAN_LOW_PIN, OUTPUT);
+    pinMode(FAN_MEDIUM_PIN, OUTPUT);
+    pinMode(FAN_HIGH_PIN, OUTPUT);
+    pinMode(COOLER_PIN, OUTPUT);
     
     // Init threads
     threads.addThread(HeartbeatLed,500);
@@ -257,17 +247,6 @@ void setup(){
     lcd.backlight();
 
     // Setup SD logging
-    //SD.begin(44);
-    //SD.mkdir("test");
-
-    // Is this needed??
-    tempDelay.restart();
-    backlightTimer.restart();
-    netTempDelay.restart();
-    coolerOffTimer.restart();
-    segmentDelay.restart();
-
-    // attachInterrupt(digitalPinToInterrupt(NETCONNECT),InteruptDelay, HIGH);
 
     // Show the start menu
     LcdPrint();
@@ -368,28 +347,33 @@ void loop()
     */
 
 
-    if (localSetting.update && LastUpdate == !LOCAL_UPDATE)
-    {
-        // Serial.println("local");
-        localSetting.update = false;
-        LastUpdate = LOCAL_UPDATE;
+    // if (localSetting.update && LastUpdate == !LOCAL_UPDATE)
+    // {
+    //     // Serial.println("local");
+    //     localSetting.update = false;
+    //     LastUpdate = LOCAL_UPDATE;
 
-        currentSetting.updateSettings(localSetting);
-        netSetting.updateSettings(localSetting);
-        NetSendUpdate();
-    }
-    else if (netSetting.update && LastUpdate == !NET_UPDATE)
-    {
-        // Serial.println("Net");
-        netSetting.update = false;
-        LastUpdate = NET_UPDATE;
+    //     currentSetting.updateSettings(localSetting);
+    //     netSetting.updateSettings(localSetting);
+    //     NetSendUpdate();
+    // }
+    // else if (netSetting.update && LastUpdate == !NET_UPDATE)
+    // {
+    //     // Serial.println("Net");
+    //     netSetting.update = false;
+    //     LastUpdate = NET_UPDATE;
 
-        currentSetting.updateSettings(netSetting);
-        localSetting.updateSettings(netSetting);
-    }
-    else
+    //     currentSetting.updateSettings(netSetting);
+    //     localSetting.updateSettings(netSetting);
+    // }
+    // else
+    // {
+    //     LastUpdate = NO_UPDATE;
+    // }
+    
+    if (digitalRead(NETCONNECT) == 1)
     {
-        LastUpdate = NO_UPDATE;
+        
     }
     
     // Convert temp to char arrays
@@ -586,7 +570,7 @@ void TempController()
         // Auto temperature control loop
         if (tempCheckTimer.hasPassed(CONTROLLER_TIME) == 1 && currentSetting.coolerSetting == COOLER_AUTO)
         {
-            if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimer.hasPassed(100) == 1)
+            if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimer.hasPassed(COOLER_DELAY_TIME) == 1)
             {
                 // Turn on
                 PowerController(currentSetting.fanSetting,COOLER_AUTO);
@@ -690,15 +674,16 @@ void PowerController(int _fanSet, int _coolSet)
 
 */
 
-void NetCommand()
+void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting)
 {
-    if (digitalRead(NETCONNECT) == 1)
-    {
-        
-    }
-    
+    Serial1.write(SER_GETTEMP);
+    int t = Serial1.read();
 }
 
+void NetSendUpdate()
+{
+
+}
 
 void NetUpdate_TempStat()
 {

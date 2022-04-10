@@ -18,7 +18,7 @@
 #define SER_FAN2 0x12
 #define SER_FAN3 0x13
 
-#define SER_COOL0 0x20
-#define SER_COOL1 0x21
-#define SER_COOL2 0x22
+#define SER_COOL_OFF 0x20
+#define SER_COOL_AUTO 0x21
+#define SER_COOL_ON 0x22
 

@@ -4,8 +4,9 @@
 .vscode/launch.json
 .vscode/ipch
 .vscode
-packages/
+/packages
 platforms
 .cache
 appstate.json
 homestate.json
+packages.lock

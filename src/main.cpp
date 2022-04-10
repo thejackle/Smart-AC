@@ -688,6 +688,12 @@ void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting)
 
     switch (temp)
     {
+    case SER_FAN1:
+        currentSetting.fanSetting = 1;
+        localSetting.fanSetting = 1;
+        Serial.println("Fan");
+        break;
+
     case SER_FAN2:
         currentSetting.fanSetting = 2;
         localSetting.fanSetting = 2;

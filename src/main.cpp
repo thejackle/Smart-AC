@@ -16,6 +16,8 @@
 
 #define TESTBED
 
+// Test comment
+
 // Create a stuct to store the settings
     struct Settings
     {

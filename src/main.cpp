@@ -7,6 +7,7 @@
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
 #include <SD.h>
+#include <SPI.h>
 
 // Custome header files
 #include <Menuclass.h>
@@ -15,6 +16,8 @@
 #include <Settings.h>
 
 #define TESTBED
+
+elapsedMillis timerOne;
 
 // Create a stuct to store the settings
     struct Settings
@@ -118,6 +121,11 @@
     void CharCpy(char* _charOneInput, char _charTwoInput[], int offset);
     void CharCpy(char* _charOneInput, const char _charTwoInput[], int offset);
 
+// SD Setup
+    #define CHIP_SELECT 254
+    File log;
+    void SDLog(char data[]);
+
 /********************************************************/
 
 // Menu Setup
@@ -210,7 +218,7 @@ void setup(){
 
     SegmentDisplay.begin4();
     SegmentDisplay.setDisplayArea4(1,2,3,4);
-    // SegmentDisplay.print4("C","O","O","L");
+    SegmentDisplay.print4("C","O","O","L");
 
     Temp1Sensor.begin();
 
@@ -218,7 +226,7 @@ void setup(){
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(TEMPSENSOR_PIN, INPUT);
     pinMode(NETCONNECT, INPUT);
-    pinMode(33, INPUT);
+    // pinMode(33, INPUT);              // What was this for?
 
     pinMode(FAN_LOW_PIN, OUTPUT);
     pinMode(FAN_MEDIUM_PIN, OUTPUT);
@@ -247,6 +255,19 @@ void setup(){
     lcd.backlight();
 
     // Setup SD logging
+    if (!SD.begin(BUILTIN_SDCARD))
+    {
+        Serial.println("Could not initialise SD card");
+    }
+    else
+    {
+        Serial.println("SD card initialised");
+        log = SD.open("test.txt", FILE_WRITE);
+        log.println("This is a test file from the AC program");
+        log.close();
+    }
+    
+    
 
     // Show the start menu
     LcdPrint();
@@ -394,8 +415,6 @@ void loop()
     switch (menuIndex)
     {        
         case 1:
-
-
             if (currentSetting.fanSetting == 0)
             {
                 CharCpy(&menu[1].Linetwo[0], "Off  ", 0);
@@ -436,7 +455,7 @@ void loop()
     // NetUpdate_TempStat();
 
     // Update current temp - 7 segment display
-    // SegmentDisplay.print4(Global_TempCurrent);
+    SegmentDisplay.print4(Global_TempCurrent);
     // UpdateSegment();
 
     // Print LCD screen (no flashing)
@@ -445,14 +464,14 @@ void loop()
 
 /*************************************************************************************************************************/
 
-void HeartbeatLed(int _TimeDelay)
+void HeartbeatLed(int _timeDelay)
 {
     while (1)
     {
         digitalWrite(LED_BUILTIN, HIGH);
-        delay(_TimeDelay);
+        delay(_timeDelay);
         digitalWrite(LED_BUILTIN, LOW);
-        delay(_TimeDelay);        
+        delay(_timeDelay);        
     }    
 }
 
@@ -559,7 +578,7 @@ void UpdateCurrentTemp()
         else
         {
             #ifdef TESTBED
-                Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,-35,90);
+                Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,0,90);
             #endif
         }
     }
@@ -679,6 +698,7 @@ void PowerController(int _fanSet, int _coolSet)
 
 void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting)
 {
+    timerOne = 0;
     // Send request
     Serial1.write(SER_GETCOOL);
     // Wait for respone - add timeout
@@ -710,9 +730,53 @@ void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting)
         Serial.println("default");
         break;
     }
-    Serial.printf("Fan set to %i", currentSetting.fanSetting);
+    
+    Serial1.write(SER_GETCOOL);
+    while (!Serial1.available()); 
+    temp = Serial1.read();
+    Serial.println(temp, HEX);
+    
+    switch (temp)
+    {
+    case SER_FAN1:
+        currentSetting.fanSetting = 1;
+        localSetting.fanSetting = 1;
+        Serial.println("Fan");
+        break;
+
+    case SER_FAN2:
+        currentSetting.fanSetting = 2;
+        localSetting.fanSetting = 2;
+        Serial.println("Fan");
+        break;
+    
+    case SER_COOL_AUTO:
+        currentSetting.coolerSetting = 1;
+        localSetting.coolerSetting = 1;
+        Serial.println("Cool");
+        break;
+    
+    default:
+        Serial.println("default");
+        break;
+    }
+    
+    Serial1.write(SER_GETTEMP);
+    while (!Serial1.available()); 
+    float test = Serial1.parseFloat();
+    currentSetting.setPoint = test;
+    localSetting.setPoint = test;
+    Serial.println(test);
+
+    Serial.printf("Fan set to %i\n", currentSetting.fanSetting);
+    Serial.println(timerOne);
 }
 
+void serialEvent1()
+{
+    // If update requested, run update function
+    // If local update, run update function
+}
 void NetSendUpdate()
 {
 

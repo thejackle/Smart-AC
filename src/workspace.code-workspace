@@ -7,6 +7,9 @@
 		{
 			"name": "Dummy coms",
 			"path": "..\\..\\Dummy coms"
+		},
+		{
+			"path": "..\\..\\SD test"
 		}
 	],
 	"settings": {

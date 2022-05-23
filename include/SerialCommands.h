@@ -2,6 +2,10 @@
 #define SER_REQ 0x00
 #define SER_ACK 0x01
 
+// Update required
+#define SER_UPDATE_STAT 0x02
+#define SER_UPDATE_REQ 0x03
+
 // Get and set commands
 #define SER_GETTEMP 0x05
 #define SER_SETTEMP 0x06

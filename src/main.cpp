@@ -22,7 +22,7 @@ elapsedMillis timerOne;
 // Create a stuct to store the settings
     struct Settings
     {
-        double setPoint = 23.0;
+        float setPoint = 23.0;
         int fanSetting = 0;
         int coolerSetting = 0;
         bool update = false;
@@ -40,7 +40,7 @@ elapsedMillis timerOne;
     Settings currentSetting;
 
 // Global variables
-    double Global_TempCurrent = 20.00;
+    float Global_TempCurrent = 20.00;
     int LastUpdate = 0;
 
 // Keypad setup
@@ -97,7 +97,7 @@ elapsedMillis timerOne;
 
 // Net update
     // void NetUpdate_TempStat();
-    void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting);
+    void NetGetUpdate(float* _setTemp, int* _fanSetting, int* _coolerSetting);
     void NetSendUpdate();
     Chrono netTempDelay;
 
@@ -123,7 +123,7 @@ elapsedMillis timerOne;
 
 // SD Setup
     #define CHIP_SELECT 254
-    File log;
+    //File log;
     void SDLog(char data[]);
 
 /********************************************************/
@@ -214,6 +214,7 @@ void setup(){
     // Serial init
     Serial.begin(115200);
     Serial1.begin(115200);
+    Serial1.setTimeout(500);
     delay(500);
 
     SegmentDisplay.begin4();
@@ -262,7 +263,7 @@ void setup(){
     else
     {
         Serial.println("SD card initialised");
-        log = SD.open("test.txt", FILE_WRITE);
+        File log = SD.open("test.txt", FILE_WRITE);
         log.println("This is a test file from the AC program");
         log.close();
     }
@@ -693,20 +694,64 @@ void PowerController(int _fanSet, int _coolSet)
         Secondary - acknowledge
         Master - send variable
         Secondary - acknowledge
+    
+    Update process
+        Send update
+            Create byte array to send to remote
+            1. Current temp
+            2. Current temp
+            3. Current temp
+            4. Current temp
+            5. Set temp
+            6. Set temp
+            7. Set temp
+            8. Set temp
+            9. Fan setting
+            10. Cooler setting
+            Send byte array
+            Read ACC
+
+        Get update
+            Remote - Create byte array to send to remote
+            1. Set temp
+            2. Set temp
+            3. Set temp
+            4. Set temp
+            5. Fan setting
+            6. Cooler setting
 
 */
 
-void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting)
+void NetGetUpdate(float* _setTemp, int* _fanSetting, int* _coolerSetting)
 {
     timerOne = 0;
     // Send request
-    Serial1.write(SER_GETCOOL);
-    // Wait for respone - add timeout
-    while (!Serial1.available()); 
-    int temp = Serial1.read();
-    Serial.println(temp, HEX);
 
-    switch (temp)
+    char outputData[10];
+    memcpy(&outputData[0], &Global_TempCurrent, sizeof Global_TempCurrent);
+    memcpy(&outputData[4], &_setTemp, sizeof _setTemp);
+    outputData[8] = '0' + *_fanSetting;
+    outputData[9] = '0' + *_coolerSetting;
+
+    Serial.print("Fan setting:");
+    Serial.println(outputData[8] - '0');
+    
+    // Send char array to remote
+    Serial1.write(outputData, sizeof(outputData));
+
+    char inputData[6];
+    if (Serial1.available() >= 6)
+    {
+        Serial1.readBytes(inputData, 6);
+    }
+    
+    
+    Serial.println(inputData[0], HEX);
+
+    Serial.print("Send time:");
+    Serial.println(timerOne);
+
+    switch (inputData[0])
     {
     case SER_FAN1:
         currentSetting.fanSetting = 1;
@@ -731,52 +776,23 @@ void NetGetUpdate(double* _setTemp, int* _fanSetting, int* _coolerSetting)
         break;
     }
     
-    Serial1.write(SER_GETCOOL);
-    while (!Serial1.available()); 
-    temp = Serial1.read();
-    Serial.println(temp, HEX);
-    
-    switch (temp)
-    {
-    case SER_FAN1:
-        currentSetting.fanSetting = 1;
-        localSetting.fanSetting = 1;
-        Serial.println("Fan");
-        break;
+    Serial.print("Process time:");
+    Serial.println(timerOne);
 
-    case SER_FAN2:
-        currentSetting.fanSetting = 2;
-        localSetting.fanSetting = 2;
-        Serial.println("Fan");
-        break;
-    
-    case SER_COOL_AUTO:
-        currentSetting.coolerSetting = 1;
-        localSetting.coolerSetting = 1;
-        Serial.println("Cool");
-        break;
-    
-    default:
-        Serial.println("default");
-        break;
-    }
-    
     Serial1.write(SER_GETTEMP);
-    while (!Serial1.available()); 
-    float test = Serial1.parseFloat();
-    currentSetting.setPoint = test;
-    localSetting.setPoint = test;
-    Serial.println(test);
+    //while (!Serial1.available()); 
+    //float test = Serial1.parseFloat();
+    // currentSetting.setPoint = test;
+    // localSetting.setPoint = test;
+    // Serial.println(test);
 
     Serial.printf("Fan set to %i\n", currentSetting.fanSetting);
+    Serial.print("Total time:");
+    // if there is an error flush the buffer
+    //Serial1.flush();
     Serial.println(timerOne);
 }
 
-void serialEvent1()
-{
-    // If update requested, run update function
-    // If local update, run update function
-}
 void NetSendUpdate()
 {
 

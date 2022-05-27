@@ -698,27 +698,27 @@ void PowerController(int _fanSet, int _coolSet)
     Update process
         Send update
             Create byte array to send to remote
-            1. Current temp
-            2. Current temp
-            3. Current temp
-            4. Current temp
-            5. Set temp
-            6. Set temp
-            7. Set temp
-            8. Set temp
-            9. Fan setting
-            10. Cooler setting
+            1.[0] Current temp
+            2.[1] Current temp
+            3.[2] Current temp
+            4.[3] Current temp
+            5.[4] Set temp
+            6.[5] Set temp
+            7.[6] Set temp
+            8.[7] Set temp
+            9.[8] Fan setting
+            10.[9] Cooler setting
             Send byte array
             Read ACC
 
         Get update
             Remote - Create byte array to send to remote
-            1. Set temp
-            2. Set temp
-            3. Set temp
-            4. Set temp
-            5. Fan setting
-            6. Cooler setting
+            1.[0] Set temp
+            2.[1] Set temp
+            3.[2] Set temp
+            4.[3] Set temp
+            5.[4] Fan setting
+            6.[6] Cooler setting
 
 */
 

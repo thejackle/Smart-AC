@@ -10,6 +10,7 @@
 
 char inputData[10];
 char outputData[6];
+bool dataRecived = false;
 
 int fanSetting = 0;
 bool coolerSetting = false;
@@ -73,7 +74,7 @@ void loop()
     // Read the input serial data
     while (Serial1.available())
     {
-      inputData = Serial1.readBytes(inputData, 10);
+      Serial1.readBytes(inputData, 10);
       dataRecived = true;
       //Serial.println("serial loop");
     }
@@ -83,9 +84,9 @@ void loop()
     {
 
       // Update current temperature
-      memcpy(&inputData[0], &currentTempurature, sizeof currentTempurature)
+      memcpy(&inputData[0], &currentTempurature, sizeof currentTempurature);
       // Update set temperature
-      memcpy(&inputData[4], &setPoint, sizeof setPoint)
+      memcpy(&inputData[4], &setPoint, sizeof setPoint);
 
       // Update fan setting
       switch (inputData[8])
@@ -163,39 +164,43 @@ void onAcAutoSettingChange()
 
 void sendUpdate()
 {
+  // Add the set point to the output data
   memcpy(&outputData[0], &setPoint, sizeof setPoint);
 
+  // Add the fan setting to the output data
   switch (fanSetting)
   {
   case 0:
-    outputData[4] = SER_FAN0
+    outputData[4] = SER_FAN0;
     break;
   
   case 1:
-    outputData[4] = SER_FAN1
+    outputData[4] = SER_FAN1;
     break;
   
   case 2:
-    outputData[4] = SER_FAN2
+    outputData[4] = SER_FAN2;
     break;
   
   case 3:
-    outputData[4] = SER_FAN3
+    outputData[4] = SER_FAN3;
     break;
 
   default:
     break;
   }
 
+  // Add the cooler setting to the output data
   if(coolerSetting == true)
   {
-    outputData[5] = SER_COOL_AUTO
+    outputData[5] = SER_COOL_AUTO;
   }
   else
   {
-    outputData[5] = SER_COOL_OFF
+    outputData[5] = SER_COOL_OFF;
   }
 
+  // Send the output data
   Serial1.write(outputData, 6);
 }
 

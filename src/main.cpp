@@ -603,6 +603,9 @@ void TempController()
             }
             else if (Global_TempCurrent < currentSetting.setPoint && Delay_reset == false)
             {
+                // If the fan is off turn the fan to low
+                if (currentSetting.fanSetting < FAN_LOW){currentSetting.fanSetting = FAN_LOW;}
+                
                 // Turn off
                 PowerController(currentSetting.fanSetting,DEVICE_OFF);
                 coolerOffTimer.restart();
@@ -632,46 +635,46 @@ void TempController()
 void PowerController(int _fanSet, int _coolSet)
 {
     // Controlls fan and cooler
-    if (_coolSet > 0)
+    if (_coolSet > DEVICE_OFF)
     {
-        if (_fanSet < 1)
+        if (_fanSet < FAN_LOW)
         {
-            _fanSet = 1;
-            currentSetting.fanSetting = 1;
+            _fanSet = FAN_LOW;
+            currentSetting.fanSetting = FAN_LOW;
             localSetting.fanSetting = currentSetting.fanSetting;
         }
-        digitalWrite(COOLER_PIN, 1);
+        digitalWrite(COOLER_PIN, HIGH);
     }
     else
     {
-        digitalWrite(COOLER_PIN, 0);
+        digitalWrite(COOLER_PIN, LOW);
     }
     
     switch (_fanSet)
     {
     case DEVICE_OFF:
-        digitalWrite(FAN_LOW_PIN, 0);
-        digitalWrite(FAN_MEDIUM_PIN, 0);
-        digitalWrite(FAN_HIGH_PIN, 0);
-        digitalWrite(COOLER_PIN, 0);
+        digitalWrite(FAN_LOW_PIN, LOW);
+        digitalWrite(FAN_MEDIUM_PIN, LOW);
+        digitalWrite(FAN_HIGH_PIN, LOW);
+        digitalWrite(COOLER_PIN, LOW);
         break;
 
     case FAN_LOW:
-        digitalWrite(FAN_LOW_PIN, 1);
-        digitalWrite(FAN_MEDIUM_PIN, 0);
-        digitalWrite(FAN_HIGH_PIN, 0);
+        digitalWrite(FAN_LOW_PIN, HIGH);
+        digitalWrite(FAN_MEDIUM_PIN, LOW);
+        digitalWrite(FAN_HIGH_PIN, LOW);
         break;
     
     case FAN_MEDIUM:
-        digitalWrite(FAN_LOW_PIN, 0);
-        digitalWrite(FAN_MEDIUM_PIN, 1);
-        digitalWrite(FAN_HIGH_PIN, 0);
+        digitalWrite(FAN_LOW_PIN, LOW);
+        digitalWrite(FAN_MEDIUM_PIN, HIGH);
+        digitalWrite(FAN_HIGH_PIN, LOW);
         break;
         
     case FAN_HIGH:
-        digitalWrite(FAN_LOW_PIN, 0);
-        digitalWrite(FAN_MEDIUM_PIN, 0);
-        digitalWrite(FAN_HIGH_PIN, 1);
+        digitalWrite(FAN_LOW_PIN, LOW);
+        digitalWrite(FAN_MEDIUM_PIN, LOW);
+        digitalWrite(FAN_HIGH_PIN, HIGH);
         break;
 
     default:

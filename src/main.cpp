@@ -97,7 +97,7 @@ elapsedMillis timerOne;
 
 // Net update
     // void NetUpdate_TempStat();
-    void NetGetUpdate(float* _setTemp, int* _fanSetting, int* _coolerSetting);
+    void NetGetUpdate(Settings sendSetting, float* currentTemp);
     void NetSendUpdate();
     Chrono netTempDelay;
 
@@ -338,7 +338,7 @@ void loop()
                 break;
             
             case '3':
-                NetGetUpdate(&netSetting.setPoint, &netSetting.fanSetting, &netSetting.coolerSetting);
+                NetGetUpdate(currentSetting, &Global_TempCurrent);
                 break;
             default:
                 break;
@@ -725,16 +725,16 @@ void PowerController(int _fanSet, int _coolSet)
 
 */
 
-void NetGetUpdate(float* _setTemp, int* _fanSetting, int* _coolerSetting)
+void NetGetUpdate(Settings sendSetting, float* currentTemp)
 {
     timerOne = 0;
     // Send request
 
     char outputData[10];
-    memcpy(&outputData[0], &Global_TempCurrent, sizeof Global_TempCurrent);
-    memcpy(&outputData[4], &_setTemp, sizeof _setTemp);
-    outputData[8] = '0' + *_fanSetting;
-    outputData[9] = '0' + *_coolerSetting;
+    memcpy(&outputData[0], currentTemp, 4);
+    memcpy(&outputData[4], &sendSetting.setPoint, 4);
+    outputData[8] = '0' + sendSetting.fanSetting;
+    outputData[9] = '0' + sendSetting.coolerSetting;
 
     Serial.print("Fan setting:");
     Serial.println(outputData[8] - '0');

@@ -3,6 +3,10 @@
 		{
 			"name": "Smart AC",
 			"path": ".."
+		},
+		{
+			"name": "Dummy coms",
+			"path": "..\\..\\Dummy coms"
 		}
 	],
 	"settings": {

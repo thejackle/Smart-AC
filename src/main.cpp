@@ -11,7 +11,6 @@
 
 // Custome header files
 #include <Menuclass.h>
-#include <SerialCommands.h>
 #include <Pins.h>
 #include <Settings.h>
 
@@ -145,7 +144,7 @@ elapsedMillis timerOne;
 /*************************************************************************************************************************/
 
 // Program version
-#define SW_Version "Smart Air   V2.X"
+#define SW_Version "Smart Air   V2.0"
 /*
 Bug's
 

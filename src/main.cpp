@@ -98,7 +98,6 @@ elapsedMillis timerOne;
 // Net update
     // void NetUpdate_TempStat();
     void NetGetUpdate(Settings sendSetting, float* currentTemp);
-    void NetSendUpdate();
     Chrono netTempDelay;
 
 // Power controls
@@ -226,7 +225,6 @@ void setup(){
     // Set pins 
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(TEMPSENSOR_PIN, INPUT);
-    pinMode(NETCONNECT, INPUT);
     // pinMode(33, INPUT);              // What was this for?
 
     pinMode(FAN_LOW_PIN, OUTPUT);
@@ -380,7 +378,6 @@ void loop()
 
         currentSetting.updateSettings(localSetting);
         netSetting.updateSettings(localSetting);
-        NetSendUpdate();
     }
     else if (netSetting.update && LastUpdate == !NET_UPDATE)
     {
@@ -394,11 +391,6 @@ void loop()
     else
     {
         LastUpdate = NO_UPDATE;
-    }
-    
-    if (digitalRead(NETCONNECT) == 1)
-    {
-        
     }
     
     // Convert temp to char arrays
@@ -795,167 +787,3 @@ void NetGetUpdate(Settings sendSetting, float* currentTemp)
     //Serial1.flush();
     Serial.println(timerOne);
 }
-
-void NetSendUpdate()
-{
-
-//   int temp = 05;
-//   int setting = 0;
-
-//   switch (temp)
-//   {
-//     case SER_GETTEMP:
-//       Serial.print(22.50);
-//       break;
-
-//     case SER_GETCOOL:
-//       Serial.write(SER_COOL_AUTO);
-//       break;
-
-//     case SER_GETFAN:
-//       Serial.write(SER_FAN2);
-//       break;
-
-//     case SER_SETTEMP:
-//       float temperature = Serial.parseFloat();
-//       Serial.write(SER_ACK);
-//       break;
-      
-//     case SER_SETFAN:
-//       setting = Serial.read();
-//       Serial.write(SER_ACK);
-//       break;
-
-//     case SER_SETCOOL:
-//       setting = Serial.read();
-//       Serial.write(SER_ACK);
-//       break;
-
-//     default:
-//       break;
-//   }
-}
-
-// void NetUpdate_TempStat()
-// {
-
-//     if (digitalRead(NETCONNECT) && netTempDelay.hasPassed(NET_UPDATE_DELAY) == 1)
-//     {
-//         char _NetSend[16] = "set tempc ";
-
-//         strcat(_NetSend, charTempCurrent);
-//         strcat(_NetSend, " ");
-//         Serial1.println(_NetSend);
-//         Serial.println(_NetSend);
-//         netTempDelay.restart();
-//     }
-// }
-
-// void NetSendUpdate()
-// {
-//     char _NetSend[16];
-//     // Serial.println("Send update");
-
-//     if (digitalRead(NETCONNECT) == 1)
-//     {
-//         // Serial.println("temps");
-//         netTempDelay.restart();
-
-//         // Update set temp
-//         dtostrf(currentSetting.setPoint,4,2,charTempSet);
-//         strcpy(_NetSend, "set temps ");
-//         strcat(_NetSend, charTempSet);
-//         Serial1.println(_NetSend);
-
-//         delay(100);
-
-//         // Update cooler setting
-//         strcpy(_NetSend, "set auto ");
-//         sprintf(charCoolSetting, "%d", currentSetting.coolerSetting);
-//         strcat(_NetSend, charCoolSetting);
-//         // _NetSend = "set auto ";
-//         Serial1.println(_NetSend);
-
-//         delay(100);
-
-//         // Update fan setting
-//         strcpy(_NetSend, "set fan ");
-//         sprintf(charFanSetting, "%d", currentSetting.fanSetting);
-//         strcat(_NetSend, charFanSetting);
-//         Serial1.println(_NetSend);
-//     }
-// }
-
-// void serialEvent1()
-// {
-//     // delay(2000);
-//     // Serial.println("Start");
-//     if (digitalRead(NETCONNECT))
-//     {
-//         char _rawCharIn[32];
-//         int _testInt = Serial1.available();
-//         for (int i = 0; i < _testInt; i++)
-//         {
-//             _rawCharIn[i] = Serial1.read();
-//         }
-
-//         char Action[5];
-//         strncpy(Action, _rawCharIn, 4);
-//         Action[sizeof(Action) - 1] = '\0';
-
-//         // Serial.print("raw=");
-//         // Serial.println(_rawCharIn);
-//         // Serial.print("action=");
-//         // Serial.println(Action);
-        
-//         if (strcmp(Action, "temp") == 0)
-//         {
-//             char _charInt[6];
-//             _charInt[0] = _rawCharIn[4];
-//             _charInt[1] = _rawCharIn[5];
-//             _charInt[2] = _rawCharIn[6];
-//             _charInt[3] = _rawCharIn[7];
-//             _charInt[4] = _rawCharIn[8];
-
-//             netSetting.setPoint = atof(_charInt);
-//             Serial.print("temp=");
-//             Serial.println(netSetting.setPoint);
-//         }
-//         else if (strcmp(Action, "auto") == 0)
-//         {
-//             netSetting.coolerSetting = _rawCharIn[4] - '0';
-//             if (netSetting.coolerSetting == 1 && currentSetting.fanSetting == 0)
-//             {
-//                 currentSetting.fanSetting = 1;
-//                 netSetting.fanSetting = 1;
-//                 NetSendUpdate();
-//             }
-            
-//         }
-//         else if (strcmp(Action, "fans") == 0)
-//         {
-//             netSetting.fanSetting = _rawCharIn[4] - '0';
-//             if (netSetting.fanSetting == 0)
-//             {
-//                 // Serial.println("test");
-//                 currentSetting.coolerSetting = 0;
-//                 netSetting.coolerSetting = 0;
-//                 NetSendUpdate();
-//             }
-            
-//         }
-//         else{}
-//         // Serial.println(netSetting.fanSetting);
-//         netSetting.update = true;
-//     }
-//     else
-//     {
-//         while (Serial1.available())
-//         {
-//             Serial1.read();
-//         }
-        
-//     }
-// }
-
-

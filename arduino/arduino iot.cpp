@@ -2,8 +2,15 @@
 #include "thingProperties.h"
 // #include <ArduinoIoTCloud.h>
 #include <Chrono.h>
-#include <Arduino.h>
-#include <SerialCommands.h>
+
+// Request and acknowledge
+#define SER_REQ 0x00
+#define SER_ACK 0x01
+
+// Update required
+#define SER_UPDATE_STAT 0x02
+#define SER_UPDATE_REQ 0x03
+
 
 // This file is used to create the code for the arduino iot device for remote access
 // This code is copied and compiled on the arduino iot website
@@ -11,17 +18,13 @@
 char inputData[10];
 char outputData[6];
 bool dataRecived = false;
-
-int fanSetting = 0;
-bool coolerSetting = false;
-float setPoint = 23.00;
-float currentTempurature = 23.00;
+bool updateReady = false;
 
 
 /*****************************************************************************/
 
 void setup() {
-  
+
   // Start serial coms
   Serial.begin(9600);
   Serial1.begin(115200);
@@ -29,18 +32,18 @@ void setup() {
 
   // init iot properties
   initProperties();
-  ArduinoCloud.begin(ArduinoIoTPreferredConnection); 
-  
+  ArduinoCloud.begin(ArduinoIoTPreferredConnection);
+
   /*
      The following function allows you to obtain more information
      related to the state of network and IoT Cloud connection and errors
      the higher number the more granular information you’ll get.
      The default is 0 (only errors).
      Maximum is 4
- */
+  */
   setDebugMessageLevel(2);
   ArduinoCloud.printDebugInfo();
-  
+
   // Create settings defalut, set to default
   fanSetting = 0;
   coolerSetting = false;
@@ -58,7 +61,7 @@ void setup() {
 
 /*****************************************************************************/
 
-void loop() 
+void loop()
 {
   // Update iot connection
   ArduinoCloud.update();
@@ -68,9 +71,7 @@ void loop()
     // Set the LED to solid, to indicate if its connected
     digitalWrite(LED_BUILTIN, 1);
     digitalWrite(2, 1);
-    Serial.println("Connected");
-    delay(5000);
-    
+
     // Read the input serial data
     while (Serial1.available())
     {
@@ -78,60 +79,49 @@ void loop()
       dataRecived = true;
       //Serial.println("serial loop");
     }
-    
+
     // Process the input data
-    if(dataRecived == true)
+    if (dataRecived == true)
     {
+      Serial.println("Processing data");
 
       // Update current temperature
-      memcpy(&inputData[0], &currentTempurature, sizeof currentTempurature);
+      memcpy(&currentTempurature, &inputData[0], sizeof currentTempurature);
       // Update set temperature
-      memcpy(&inputData[4], &setPoint, sizeof setPoint);
+      memcpy(&setPoint, &inputData[4], sizeof setPoint);
 
-      // Update fan setting
-      switch (inputData[8])
-      {
-      case SER_FAN0:
-        fanSetting = 0;
-        break;
-      
-      case SER_FAN1:
-        fanSetting = 1;
-        break;
-        
-      case SER_FAN2:
-        fanSetting = 2;
-        break;
-        
-      case SER_FAN3:
-        fanSetting = 3;
-        break;
+      Serial.print("currentTempurature = ");
+      Serial.println(currentTempurature);
+      Serial.print("setPoint = ");
+      Serial.println(setPoint);
 
-      default:
-        break;
-      }
+      fanSetting = inputData[8] - '0';
+      Serial.print("Fan = ");
+      Serial.println(fanSetting);
 
       // Update cooler setting
-      switch (inputData[9])
+      switch (inputData[9] - '0')
       {
-      case SER_COOL_OFF:
-        coolerSetting = false;
-        break;
-      
-      case SER_COOL_AUTO:
-        coolerSetting = true;
-        break;
-        
-      case SER_COOL_ON:
-        break;
-        
-      default:
-        break;
+        case 0:
+          coolerSetting = false;
+          Serial.println("Cooler = off");
+          break;
+
+        case 1:
+          coolerSetting = true;
+          Serial.println("Cooler = auto");
+          break;
+
+        case 2:
+          break;
+
+        default:
+          break;
       }
 
       dataRecived = false;
     }
-    
+
   }
   else
   {
@@ -141,25 +131,28 @@ void loop()
     digitalWrite(LED_BUILTIN, 0);
     delay(100);
   }
- 
+
 }
 
 
 /*****************************************************************************/
 
-void onAcFanSettingChange() 
+void onFanSettingChange()
 {
-  updateReady = true;
+  sendUpdate();
+  Serial.println("Send update");
 }
 
-void onAcSetTempChange() 
+void onSetPointChange()
 {
-  updateReady = true;
+  sendUpdate();
+  Serial.println("Send update");
 }
 
-void onAcAutoSettingChange()
+void onCoolerSettingChange()
 {
-  updateReady = true;
+  sendUpdate();
+  Serial.println("Send update");
 }
 
 void sendUpdate()
@@ -168,36 +161,16 @@ void sendUpdate()
   memcpy(&outputData[0], &setPoint, sizeof setPoint);
 
   // Add the fan setting to the output data
-  switch (fanSetting)
-  {
-  case 0:
-    outputData[4] = SER_FAN0;
-    break;
-  
-  case 1:
-    outputData[4] = SER_FAN1;
-    break;
-  
-  case 2:
-    outputData[4] = SER_FAN2;
-    break;
-  
-  case 3:
-    outputData[4] = SER_FAN3;
-    break;
-
-  default:
-    break;
-  }
+  outputData[4] = '0' + fanSetting;
 
   // Add the cooler setting to the output data
-  if(coolerSetting == true)
+  if (coolerSetting == true)
   {
-    outputData[5] = SER_COOL_AUTO;
+    outputData[5] = '1';
   }
   else
   {
-    outputData[5] = SER_COOL_OFF;
+    outputData[5] = '0';
   }
 
   // Send the output data

@@ -4,7 +4,6 @@
 .vscode/launch.json
 .vscode/ipch
 .vscode
-/packages
 platforms
 .cache
 appstate.json

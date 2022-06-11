@@ -1,5 +1,5 @@
 // #include <arduino_secrets.h>
-#include "thingProperties.h"
+//#include "thingProperties.h"
 // #include <ArduinoIoTCloud.h>
 #include <Chrono.h>
 
@@ -46,7 +46,8 @@ void setup() {
 
   // Create settings defalut, set to default
   fanSetting = 0;
-  coolerSetting = false;
+  coolerOn = false;
+  coolerAuto = false;
   setPoint = 23.00;
   currentTempurature = 23.00;
 
@@ -103,16 +104,21 @@ void loop()
       switch (inputData[9] - '0')
       {
         case 0:
-          coolerSetting = false;
+          coolerAuto = false;
+          coolerOn = false;
           Serial.println("Cooler = off");
           break;
 
         case 1:
-          coolerSetting = true;
+          coolerAuto = true;
+          coolerOn = false;
           Serial.println("Cooler = auto");
           break;
 
         case 2:
+          coolerAuto = false;
+          coolerOn = true;
+          Serial.println("Cooler = Cool");
           break;
 
         default:
@@ -139,6 +145,11 @@ void loop()
 
 void onFanSettingChange()
 {
+  if (fanSetting == 0)
+  {
+    coolerAuto = false;
+    coolerOn = false;
+  }
   sendUpdate();
   Serial.println("Send update");
 }
@@ -149,8 +160,21 @@ void onSetPointChange()
   Serial.println("Send update");
 }
 
-void onCoolerSettingChange()
-{
+void onCoolerAutoChange()  {
+  if (coolerAuto == true)
+  {
+    coolerOn = false;
+  }
+  
+  sendUpdate();
+  Serial.println("Send update");
+}
+
+void onCoolerOnChange()  {
+  if (coolerOn == true)
+  {
+    coolerAuto = false;
+  }
   sendUpdate();
   Serial.println("Send update");
 }
@@ -164,7 +188,11 @@ void sendUpdate()
   outputData[4] = '0' + fanSetting;
 
   // Add the cooler setting to the output data
-  if (coolerSetting == true)
+  if (coolerOn == true)
+  {
+    outputData[5] = '2';
+  }
+  else if (coolerAuto == true)
   {
     outputData[5] = '1';
   }

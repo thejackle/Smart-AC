@@ -185,6 +185,7 @@ Loop
 	switch for main menu index
 		update main menu based on index
 	
+	Log data
 	update segment display
 	update lcd temp
 */
@@ -384,6 +385,8 @@ void loop()
 		default:
 		break;
 	}
+
+	// Log data to SD card
 
 	// Update current temp - 7 segment display
 	SegmentDisplay.print4(Global_TempCurrent);
@@ -610,6 +613,11 @@ void PowerController(int _fanSet, int _coolSet)
 	}
 	
 	
+}
+
+void SDLog(char data[])
+{
+	// Log to SD card
 }
 
 /*********************************** Coms *******************************************/

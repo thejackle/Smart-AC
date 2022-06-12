@@ -14,7 +14,6 @@
 #include <Pins.h>
 #include <Settings.h>
 
-#define TESTBED
 
 elapsedMillis timerOne;
 
@@ -523,8 +522,13 @@ void TempController()
 	while (1)
 	{
 		// Auto temperature control loop
-		if (tempCheckTimer.hasPassed(CONTROLLER_TIME) == 1 && currentSetting.coolerSetting == COOLER_AUTO)
+		if (currentSetting.coolerSetting == COOLER_AUTO)
 		{
+			if(currentSetting.fanSetting < 1)
+			{
+				currentSetting.fanSetting = 1;
+			}
+			
 			if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimer.hasPassed(COOLER_DELAY_TIME) == 1)
 			{
 				// Turn on

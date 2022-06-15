@@ -122,6 +122,7 @@ elapsedMillis timerOne;
 	#define CHIP_SELECT 254
 	//File log;
 	void SDLog(char data[]);
+	bool SDAvailable = false;
 
 /********************************************************/
 
@@ -214,10 +215,10 @@ void setup(){
 	pinMode(COOLER_PIN, OUTPUT);
 	
 	// Init threads
-	threads.addThread(HeartbeatLed,500);
+	//threads.addThread(HeartbeatLed,500);
 	threads.addThread(TempController);
 	threads.addThread(BacklightSet);
-	threads.addThread(UpdateCurrentTemp);
+	//threads.addThread(UpdateCurrentTemp);
 
 	// Fill in the menu
 	
@@ -241,10 +242,9 @@ void setup(){
 	}
 	else
 	{
+		SDAvailable = true;
 		Serial.println("SD card initialised");
-		File log = SD.open("test.txt", FILE_WRITE);
-		log.println("This is a test file from the AC program");
-		log.close();
+		SDLog("Starting new Log");
 	}
 	
 	// Show the start menu
@@ -256,6 +256,8 @@ void setup(){
 /*************************************************************************************************************************/
 void loop()
 {
+	UpdateCurrentTemp();
+
 	// Get local inputs from the keypad
 	char keyinput = keyInput.getKey();
 	if (keyinput)
@@ -496,9 +498,9 @@ void BacklightSet()
 // Read the current temperature
 void UpdateCurrentTemp()
 {
-	delay(1000);
-	while (1)
-	{
+	// delay(1000);
+	// while (1)
+	// {
 		if (tempDelay.hasPassed(TEMP_DELAY) == 1 && Temp1Sensor.getDeviceCount() > 0)
 		{
 			Temp1Sensor.requestTemperatures();
@@ -513,7 +515,7 @@ void UpdateCurrentTemp()
 				Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,0,90);
 			#endif
 		}
-	}
+	// }
 }
 
 void TempController()
@@ -521,6 +523,10 @@ void TempController()
 	int _Cset = 0;
 	while (1)
 	{
+		digitalWrite(LED_BUILTIN, HIGH);
+		delay(500);
+		digitalWrite(LED_BUILTIN, LOW);
+		delay(500);    
 		// Auto temperature control loop
 		if (currentSetting.coolerSetting == COOLER_AUTO)
 		{
@@ -528,7 +534,7 @@ void TempController()
 			{
 				currentSetting.fanSetting = 1;
 			}
-			
+
 			if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimer.hasPassed(COOLER_DELAY_TIME) == 1)
 			{
 				// Turn on
@@ -621,7 +627,13 @@ void PowerController(int _fanSet, int _coolSet)
 
 void SDLog(char data[])
 {
-	// Log to SD card
+	if (SDAvailable)
+	{
+		File log = SD.open("logFile.txt", FILE_WRITE);
+		log.println(data);
+		log.close();
+	}
+	
 }
 
 /*********************************** Coms *******************************************/

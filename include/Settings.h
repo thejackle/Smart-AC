@@ -2,6 +2,9 @@
 // Define for bench testing
 //#define TESTBED
 
+// Program version
+#define SW_Version "Smart Air  V2.1T"
+
 // Global variables
     #define LOCAL_UPDATE 1
     #define NET_UPDATE 2
@@ -24,6 +27,9 @@
 
 // Temp get
     #define TEMP_DELAY 1000
+    #define SENS_DHT11
+    //#define DS18B20
+    //#define CONST_TEMP
 
 // Temp controller
     #ifdef TESTBED

@@ -4,6 +4,7 @@
 #include <Keypad.h>
 #include <Chrono.h>
 #include <DallasTemperature.h>
+#include <DHT.h>
 #include <OneWire.h>
 #include <DFRobot_LedDisplayModule.h>
 #include <SD.h>
@@ -80,9 +81,14 @@ elapsedMillis timerOne;
 
 // Temp get
 	void UpdateCurrentTemp();
-	OneWire tempWire(TEMPSENSOR_PIN);
-	DallasTemperature Temp1Sensor(&tempWire);
 	Chrono tempDelay;
+	#if defined(TESTBED)
+	#elif defined(DS18B20)
+		OneWire tempWire(TEMPSENSOR_PIN);
+		DallasTemperature Temp1Sensor(&tempWire);
+	#elif defined(SENS_DHT11)
+		DHT tempSensor(TEMPSENSOR_PIN, DHT11);
+	#endif
 
 // Temp controller
 	void TempController();
@@ -100,6 +106,8 @@ elapsedMillis timerOne;
 
 // Power controls
 	void PowerController(int _FanSet, int _CoolSet);
+	int tempCool = 0;
+	int tempFan = 0;
 
 // Segment display
 	DFRobot_LedDisplayModule SegmentDisplay = DFRobot_LedDisplayModule(Wire, 0x48);
@@ -123,6 +131,9 @@ elapsedMillis timerOne;
 	//File log;
 	void SDLog(char data[]);
 	bool SDAvailable = false;
+	int temp_fanSet;
+	int temp_coolSet;
+	int temp_coolerSetting;
 
 /********************************************************/
 
@@ -143,8 +154,6 @@ elapsedMillis timerOne;
 
 /*************************************************************************************************************************/
 
-// Program version
-#define SW_Version "Smart Air   V2.0"
 /*
 Bug's
 
@@ -203,7 +212,12 @@ void setup(){
 	SegmentDisplay.setDisplayArea4(1,2,3,4);
 	SegmentDisplay.print4("C","O","O","L");
 
-	Temp1Sensor.begin();
+	#if defined(TESTBED)
+	#elif defined(DS18B20)
+		Temp1Sensor.begin();
+	#elif defined(SENS_DHT11)
+		tempSensor.begin();
+	#endif
 
 	// Set pins 
 	pinMode(LED_BUILTIN, OUTPUT);
@@ -215,8 +229,8 @@ void setup(){
 	pinMode(COOLER_PIN, OUTPUT);
 	
 	// Init threads
-	//threads.addThread(HeartbeatLed,500);
-	threads.addThread(TempController);
+	threads.addThread(HeartbeatLed,500);
+	// threads.addThread(TempController);
 	threads.addThread(BacklightSet);
 	//threads.addThread(UpdateCurrentTemp);
 
@@ -244,6 +258,7 @@ void setup(){
 	{
 		SDAvailable = true;
 		Serial.println("SD card initialised");
+		SDLog("****************************************");
 		SDLog("Starting new Log");
 	}
 	
@@ -387,7 +402,8 @@ void loop()
 		break;
 	}
 
-	// Log data to SD card
+	// Check the temperature
+	TempController();
 
 	// Update current temp - 7 segment display
 	SegmentDisplay.print4(Global_TempCurrent);
@@ -501,32 +517,52 @@ void UpdateCurrentTemp()
 	// delay(1000);
 	// while (1)
 	// {
-		if (tempDelay.hasPassed(TEMP_DELAY) == 1 && Temp1Sensor.getDeviceCount() > 0)
+		if (tempDelay.hasPassed(TEMP_DELAY))
 		{
-			Temp1Sensor.requestTemperatures();
-			delay(100);
-			Global_TempCurrent = Temp1Sensor.getTempCByIndex(0);
-			// Global_TempCurrent = 27;
+			#if defined(TESTBED)
+				Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,0,90);
+			#elif defined(DS18B20)
+				if (Temp1Sensor.getDeviceCount() > 0)
+				{
+					Temp1Sensor.requestTemperatures();
+					delay(100);
+					Global_TempCurrent = Temp1Sensor.getTempCByIndex(0);
+				}
+			#elif defined(SENS_DHT11)
+				Global_TempCurrent = tempSensor.readTemperature();
+			#elif defined(CONST_TEMP)
+				Global_TempCurrent = 25.00;
+			#endif
 			tempDelay.restart();
 		}
 		else
 		{
-			#ifdef TESTBED
-				Global_TempCurrent = map(analogRead(TEST_TEMPIN),0,1023,0,90);
-			#endif
+			delay(500);
 		}
 	// }
 }
 
 void TempController()
 {
-	int _Cset = 0;
-	while (1)
-	{
-		digitalWrite(LED_BUILTIN, HIGH);
-		delay(500);
-		digitalWrite(LED_BUILTIN, LOW);
-		delay(500);    
+	// int _Cset = 0;
+	// while (1)
+	// {
+		// if (temp_coolerSetting != currentSetting.coolerSetting)
+		// {
+			// temp_coolerSetting = currentSetting.coolerSetting;
+			// char temp[] = "Cooler setting = A";
+			// temp[17] = currentSetting.coolerSetting + '0';
+			// Serial.println(temp);
+			// SDLog(temp);
+		// }
+		
+
+
+
+		// digitalWrite(LED_BUILTIN, HIGH);
+		// delay(500);
+		// digitalWrite(LED_BUILTIN, LOW);
+		// delay(500);    
 		// Auto temperature control loop
 		if (currentSetting.coolerSetting == COOLER_AUTO)
 		{
@@ -539,7 +575,7 @@ void TempController()
 			{
 				// Turn on
 				PowerController(currentSetting.fanSetting,COOLER_AUTO);
-				_Cset = COOLER_AUTO;
+				// _Cset = COOLER_AUTO;
 				Delay_reset = false;
 				coolerOffTimer.stop();
 			}
@@ -551,14 +587,14 @@ void TempController()
 				// Turn off
 				PowerController(currentSetting.fanSetting,DEVICE_OFF);
 				coolerOffTimer.restart();
-				_Cset = DEVICE_OFF;
+				// _Cset = DEVICE_OFF;
 				Delay_reset = true;
 			}
-			else
-			{
-				// Serial.println("else");
-				PowerController(currentSetting.fanSetting,_Cset);
-			}
+			// else
+			// {
+			// 	// Serial.println("else");
+			// 	PowerController(currentSetting.fanSetting,_Cset);
+			// }
 			tempCheckTimer.restart();
 		}
 		// On cooler control loop
@@ -571,57 +607,85 @@ void TempController()
 		{
 			PowerController(currentSetting.fanSetting, DEVICE_OFF);
 		}
-	} 
+	// } 
 }
 
 void PowerController(int _fanSet, int _coolSet)
 {
+
+	if (_fanSet != tempFan || _coolSet != tempCool)
+	{
+		// tempFan = _fanSet;
+		// tempCool = _coolSet;
+		char temp[20] = "Fan = A ,Cooler = B";
+		temp[6] = '0' + _fanSet;
+		temp[18] = '0' + _coolSet;
+		Serial.println(temp);
+		SDLog(temp);
+	}
+	
 	// Controlls fan and cooler
-	if (_coolSet > DEVICE_OFF)
+	if (_coolSet != tempCool)
 	{
-		if (_fanSet < FAN_LOW)
+		tempCool = _coolSet;
+		SDLog("cooler change");
+		if (_coolSet > DEVICE_OFF)
 		{
-			_fanSet = FAN_LOW;
-			currentSetting.fanSetting = FAN_LOW;
+			if (_fanSet < FAN_LOW)
+			{
+				_fanSet = FAN_LOW;
+				currentSetting.fanSetting = FAN_LOW;
+			}
+			digitalWrite(COOLER_PIN, HIGH);
+			SDLog("Cooler on");
 		}
-		digitalWrite(COOLER_PIN, HIGH);
-	}
-	else
-	{
-		digitalWrite(COOLER_PIN, LOW);
+		else
+		{
+			digitalWrite(COOLER_PIN, LOW);
+			SDLog("Cooler off");
+		}
 	}
 	
-	switch (_fanSet)
+	
+	if (_fanSet != tempFan)
 	{
-	case DEVICE_OFF:
-		digitalWrite(FAN_LOW_PIN, LOW);
-		digitalWrite(FAN_MEDIUM_PIN, LOW);
-		digitalWrite(FAN_HIGH_PIN, LOW);
-		digitalWrite(COOLER_PIN, LOW);
-		break;
+		tempFan = _fanSet;
+		SDLog("fan change");
+		switch (_fanSet)
+		{
+		case DEVICE_OFF:
+			digitalWrite(FAN_LOW_PIN, LOW);
+			digitalWrite(FAN_MEDIUM_PIN, LOW);
+			digitalWrite(FAN_HIGH_PIN, LOW);
+			digitalWrite(COOLER_PIN, LOW);
+			SDLog("Fan off");
+			break;
 
-	case FAN_LOW:
-		digitalWrite(FAN_LOW_PIN, HIGH);
-		digitalWrite(FAN_MEDIUM_PIN, LOW);
-		digitalWrite(FAN_HIGH_PIN, LOW);
-		break;
-	
-	case FAN_MEDIUM:
-		digitalWrite(FAN_LOW_PIN, LOW);
-		digitalWrite(FAN_MEDIUM_PIN, HIGH);
-		digitalWrite(FAN_HIGH_PIN, LOW);
-		break;
+		case FAN_LOW:
+			digitalWrite(FAN_LOW_PIN, HIGH);
+			digitalWrite(FAN_MEDIUM_PIN, LOW);
+			digitalWrite(FAN_HIGH_PIN, LOW);
+			SDLog("Fan low");
+			break;
 		
-	case FAN_HIGH:
-		digitalWrite(FAN_LOW_PIN, LOW);
-		digitalWrite(FAN_MEDIUM_PIN, LOW);
-		digitalWrite(FAN_HIGH_PIN, HIGH);
-		break;
+		case FAN_MEDIUM:
+			digitalWrite(FAN_LOW_PIN, LOW);
+			digitalWrite(FAN_MEDIUM_PIN, HIGH);
+			digitalWrite(FAN_HIGH_PIN, LOW);
+			SDLog("Fan mid");
+			break;
+			
+		case FAN_HIGH:
+			digitalWrite(FAN_LOW_PIN, LOW);
+			digitalWrite(FAN_MEDIUM_PIN, LOW);
+			digitalWrite(FAN_HIGH_PIN, HIGH);
+			SDLog("Fan high");
+			break;
 
-	default:
-		break;
+		default:
+			break;
+		}
 	}
-	
 	
 }
 
@@ -630,6 +694,9 @@ void SDLog(char data[])
 	if (SDAvailable)
 	{
 		File log = SD.open("logFile.txt", FILE_WRITE);
+		log.print("Time: ");
+		log.print(millis());
+		log.print(" - ");
 		log.println(data);
 		log.close();
 	}
@@ -692,7 +759,7 @@ void serialEvent1(){
 	{
 		Serial1.readBytes(inputData, 6);
 	}
-
+	SDLog(inputData);
 	memcpy(&currentSetting.setPoint, &inputData[0], 4);
 	currentSetting.fanSetting = inputData[4] - '0';
 	currentSetting.coolerSetting = inputData[5] - '0';

@@ -232,7 +232,7 @@ void setup(){
 	threads.addThread(HeartbeatLed,500);
 	// threads.addThread(TempController);
 	threads.addThread(BacklightSet);
-	//threads.addThread(UpdateCurrentTemp);
+	threads.addThread(UpdateCurrentTemp);
 
 	// Fill in the menu
 	
@@ -271,8 +271,6 @@ void setup(){
 /*************************************************************************************************************************/
 void loop()
 {
-	UpdateCurrentTemp();
-
 	// Get local inputs from the keypad
 	char keyinput = keyInput.getKey();
 	if (keyinput)
@@ -404,6 +402,8 @@ void loop()
 
 	// Check the temperature
 	TempController();
+	
+	// UpdateCurrentTemp();
 
 	// Update current temp - 7 segment display
 	SegmentDisplay.print4(Global_TempCurrent);
@@ -514,9 +514,8 @@ void BacklightSet()
 // Read the current temperature
 void UpdateCurrentTemp()
 {
-	// delay(1000);
-	// while (1)
-	// {
+	while (1)
+	{
 		if (tempDelay.hasPassed(TEMP_DELAY))
 		{
 			#if defined(TESTBED)
@@ -539,30 +538,11 @@ void UpdateCurrentTemp()
 		{
 			delay(500);
 		}
-	// }
+	}
 }
 
 void TempController()
 {
-	// int _Cset = 0;
-	// while (1)
-	// {
-		// if (temp_coolerSetting != currentSetting.coolerSetting)
-		// {
-			// temp_coolerSetting = currentSetting.coolerSetting;
-			// char temp[] = "Cooler setting = A";
-			// temp[17] = currentSetting.coolerSetting + '0';
-			// Serial.println(temp);
-			// SDLog(temp);
-		// }
-		
-
-
-
-		// digitalWrite(LED_BUILTIN, HIGH);
-		// delay(500);
-		// digitalWrite(LED_BUILTIN, LOW);
-		// delay(500);    
 		// Auto temperature control loop
 		if (currentSetting.coolerSetting == COOLER_AUTO)
 		{
@@ -590,11 +570,6 @@ void TempController()
 				// _Cset = DEVICE_OFF;
 				Delay_reset = true;
 			}
-			// else
-			// {
-			// 	// Serial.println("else");
-			// 	PowerController(currentSetting.fanSetting,_Cset);
-			// }
 			tempCheckTimer.restart();
 		}
 		// On cooler control loop

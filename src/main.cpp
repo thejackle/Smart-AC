@@ -92,6 +92,7 @@ elapsedMillis timerOne;
 
 // Temp controller
 	void TempController();
+	void AutoCooler();
 	// Delay before checking if the temperature is under set point
 	Chrono tempCheckTimer;
 	// Delay after cooler has turned off to prevent the cooler from rapidly turning on and off
@@ -543,46 +544,46 @@ void UpdateCurrentTemp()
 
 void TempController()
 {
-		// Auto temperature control loop
-		if (currentSetting.coolerSetting == COOLER_AUTO)
-		{
-			if(currentSetting.fanSetting < 1)
-			{
-				currentSetting.fanSetting = 1;
-			}
+	// Auto temperature control loop
+	if (currentSetting.coolerSetting == COOLER_AUTO)
+	{
+		AutoCooler();
+	}
+	// On cooler control loop
+	else if (currentSetting.coolerSetting == COOLER_ON)
+	{
+		PowerController(currentSetting.fanSetting, 1);
+	}
+	// Turn off devices
+	else if (currentSetting.coolerSetting == DEVICE_OFF)
+	{
+		PowerController(currentSetting.fanSetting, DEVICE_OFF);
+	}
+}
 
-			if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimer.hasPassed(COOLER_DELAY_TIME) == 1)
-			{
-				// Turn on
-				PowerController(currentSetting.fanSetting,COOLER_AUTO);
-				// _Cset = COOLER_AUTO;
-				Delay_reset = false;
-				coolerOffTimer.stop();
-			}
-			else if (Global_TempCurrent < currentSetting.setPoint && Delay_reset == false)
-			{
-				// If the fan is off turn the fan to low
-				if (currentSetting.fanSetting < FAN_LOW){currentSetting.fanSetting = FAN_LOW;}
-				
-				// Turn off
-				PowerController(currentSetting.fanSetting,DEVICE_OFF);
-				coolerOffTimer.restart();
-				// _Cset = DEVICE_OFF;
-				Delay_reset = true;
-			}
-			tempCheckTimer.restart();
-		}
-		// On cooler control loop
-		else if (currentSetting.coolerSetting == COOLER_ON)
-		{
-			PowerController(currentSetting.fanSetting, 1);
-		}
-		// Turn off devices
-		else if (currentSetting.coolerSetting == DEVICE_OFF)
-		{
-			PowerController(currentSetting.fanSetting, DEVICE_OFF);
-		}
-	// } 
+void AutoCooler()
+{
+	// If fan is off, turn fan on
+	if(currentSetting.fanSetting < 1)
+	{
+		currentSetting.fanSetting = 1;
+	}
+
+	if (Global_TempCurrent > currentSetting.setPoint && coolerOffTimer.hasPassed(COOLER_DELAY_TIME))
+	{
+		// Turn on
+		PowerController(currentSetting.fanSetting,COOLER_AUTO);
+		Delay_reset = false;
+		coolerOffTimer.stop();
+	}
+	else if (Global_TempCurrent < currentSetting.setPoint && !Delay_reset)
+	{
+		// Turn off
+		PowerController(currentSetting.fanSetting,DEVICE_OFF);
+		coolerOffTimer.restart();
+		Delay_reset = true;
+	}
+	tempCheckTimer.restart();
 }
 
 void PowerController(int _fanSet, int _coolSet)

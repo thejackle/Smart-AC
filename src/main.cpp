@@ -10,7 +10,7 @@
 #include <SD.h>
 #include <SPI.h>
 
-// Custome header files
+// Custom header files
 #include <Menuclass.h>
 #include <Pins.h>
 #include <Settings.h>
@@ -149,7 +149,7 @@ elapsedMillis timerOne;
 */
 
 /* Changes for testing
-	disable segment diplay (loop)
+	disable segment display (loop)
 	comment test input temp
 */
 
@@ -158,7 +158,7 @@ elapsedMillis timerOne;
 /*
 Bug's
 
-modular approch - any IO can be changed/modifed without affecting main program
+modular approach - any IO can be changed/modifed without affecting main program
 Define
 	Global variables
 	Keypad
@@ -168,7 +168,7 @@ Define
 	Temp get
 	Temp controller
 	Net update
-	Power contols
+	Power controls
 	Segment display
 	Menu setup
 	Temp char arrays
@@ -600,7 +600,7 @@ void PowerController(int _fanSet, int _coolSet)
 		SDLog(temp);
 	}
 	
-	// Controlls fan and cooler
+	// Controls fan and cooler
 	if (_coolSet != tempCool)
 	{
 		tempCool = _coolSet;

@@ -1,5 +1,3 @@
-
-
 // Temp sensor input
 #define TEMPSENSOR_PIN 34
 

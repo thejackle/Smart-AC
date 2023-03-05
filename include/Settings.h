@@ -1,4 +1,3 @@
-
 // Define for bench testing
 //#define TESTBED
 

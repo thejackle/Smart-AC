@@ -3,17 +3,7 @@
 		{
 			"name": "Smart AC",
 			"path": ".."
-		},
-		{
-			"name": "Dummy coms",
-			"path": "..\\..\\Dummy coms"
 		}
 	],
-	"settings": {
-		"files.associations": {
-			"bitset": "cpp",
-			"random": "cpp",
-			"future": "cpp"
-		}
-	}
+	"settings": {}
 }

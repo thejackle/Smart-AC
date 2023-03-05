@@ -9,3 +9,4 @@ platforms
 appstate.json
 homestate.json
 packages.lock
+packages

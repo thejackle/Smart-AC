@@ -1,1 +1,1 @@
-{"type": "tool", "name": "contrib-piohome", "version": "3.4.1", "spec": {"owner": "platformio", "id": 8037, "name": "contrib-piohome", "requirements": null, "uri": null}}
+{"type": "tool", "name": "contrib-piohome", "version": "3.4.3", "spec": {"owner": "platformio", "id": 8037, "name": "contrib-piohome", "requirements": null, "uri": null}}

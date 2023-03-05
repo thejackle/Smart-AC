@@ -25,25 +25,24 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE
 
-__revision__ = "scripts/scons.py 559790274f66fa55251f5754de34820a29c7327a Tue, 16 Nov 2021 19:09:21 +0000 bdeegan"
+__revision__ = "scripts/scons.py fc8d0ec215ee6cba8bc158ad40c099be0b598297 Sat, 30 Jul 2022 14:11:34 -0700 bdbaddog"
 
-__version__ = "4.3.0"
+__version__ = "4.4.0"
 
-__build__ = "559790274f66fa55251f5754de34820a29c7327a"
+__build__ = "fc8d0ec215ee6cba8bc158ad40c099be0b598297"
 
-__buildsys__ = "octodog"
+__buildsys__ = "M1Dog2021"
 
-__date__ = "Tue, 16 Nov 2021 19:09:21 +0000"
+__date__ = "Sat, 30 Jul 2022 14:11:34 -0700"
 
-__developer__ = "bdeegan"
+__developer__ = "bdbaddog"
 
 
 import os
 import sys
 
-
 # Python compatibility check
-if sys.version_info < (3, 5, 0):
+if sys.version_info < (3, 6, 0):
     msg = "scons: *** SCons version %s does not run under Python version %s.\n\
 Python >= 3.5 is required.\n"
     sys.stderr.write(msg % (__version__, sys.version.split()[0]))

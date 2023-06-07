@@ -9,6 +9,7 @@
 #include <DFRobot_LedDisplayModule.h>
 #include <SD.h>
 #include <SPI.h>
+#include "Adafruit_MCP9808.h"
 
 // Custom header files
 #include <Menuclass.h>
@@ -88,6 +89,8 @@ elapsedMillis timerOne;
 		DallasTemperature Temp1Sensor(&tempWire);
 	#elif defined(SENS_DHT11)
 		DHT tempSensor(TEMPSENSOR_PIN, DHT11);
+	#elif defined(MCP9808)
+		Adafruit_MCP9808 tempSensorAdafruit = Adafruit_MCP9808();
 	#endif
 
 // Temp controller
@@ -120,7 +123,7 @@ elapsedMillis timerOne;
 	char charTempCurrent[5];
 	char charFanSetting[1];
 	char charCoolSetting[1];
-	void InteruptDelay();
+	void InterruptDelay();
 
 // Char copy
 	void CharCpy(char* _charOneInput, char* _charTwoInput[], int offset);
@@ -218,11 +221,17 @@ void setup(){
 		Temp1Sensor.begin();
 	#elif defined(SENS_DHT11)
 		tempSensor.begin();
+	#elif defined(MCP9808)
+		tempSensorAdafruit.begin();
+		tempSensorAdafruit.setResolution(1);
 	#endif
 
 	// Set pins 
 	pinMode(LED_BUILTIN, OUTPUT);
-	pinMode(TEMPSENSOR_PIN, INPUT);
+	
+	#if defined(SENS_DHT11) || defined(DS18B20)
+		pinMode(TEMPSENSOR_PIN, INPUT);
+	#endif
 
 	pinMode(FAN_LOW_PIN, OUTPUT);
 	pinMode(FAN_MEDIUM_PIN, OUTPUT);
@@ -532,6 +541,8 @@ void UpdateCurrentTemp()
 				Global_TempCurrent = tempSensor.readTemperature();
 			#elif defined(CONST_TEMP)
 				Global_TempCurrent = 25.00;
+			#elif defined(MCP9808)
+				Global_TempCurrent = tempSensorAdafruit.readTempC();
 			#endif
 			tempDelay.restart();
 		}

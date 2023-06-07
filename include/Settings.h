@@ -2,7 +2,7 @@
 //#define TESTBED
 
 // Program version
-#define SW_Version "Smart Air  V2.1T"
+#define SW_Version "Smart Air  V3.0"
 
 // Global variables
     #define LOCAL_UPDATE 1
@@ -26,7 +26,8 @@
 
 // Temp get
     #define TEMP_DELAY 1000
-    #define SENS_DHT11
+    #define MCP9808
+    // #define SENS_DHT11
     //#define DS18B20
     //#define CONST_TEMP
 

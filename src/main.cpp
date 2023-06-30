@@ -124,12 +124,6 @@ elapsedMillis timerOne;
 	Chrono coolerOffTimer;
 	bool Delay_reset = false;
 
-
-// Net update
-	// void NetUpdate_TempStat();
-	void NetGetUpdate(Settings sendSetting, float* currentTemp);
-	Chrono netTempDelay;
-
 // Power controls
 	void PowerController(int _FanSet, int _CoolSet);
 	int tempCool = 0;
@@ -365,10 +359,10 @@ void loop()
 		menuIndex = MENU_TOTAL_ITEMS - 1;
 	}
 	
-	if(netTempDelay.hasPassed(NET_UPDATE_DELAY)){
-		NetGetUpdate(currentSetting, &Global_TempCurrent);
-		netTempDelay.restart();
-	}
+	// if(netTempDelay.hasPassed(NET_UPDATE_DELAY)){
+	// 	NetGetUpdate(currentSetting, &Global_TempCurrent);
+	// 	netTempDelay.restart();
+	// }
 
 	// Convert temp to char arrays
 	dtostrf(Global_TempCurrent,4,2,charTempCurrent);
@@ -706,66 +700,4 @@ void PowerController(int _fanSet, int _coolSet)
 		}
 	}
 	
-}
-
-/*********************************** Coms *******************************************/
-
-/*
-	Update process
-		Send update
-			Create byte array to send to remote
-			1.[0] Current temp
-			2.[1] Current temp
-			3.[2] Current temp
-			4.[3] Current temp
-			5.[4] Set temp
-			6.[5] Set temp
-			7.[6] Set temp
-			8.[7] Set temp
-			9.[8] Fan setting
-			10.[9] Cooler setting
-			Send byte array
-			Read ACC
-
-		Get update
-			Serial event
-			1.[0] Set temp
-			2.[1] Set temp
-			3.[2] Set temp
-			4.[3] Set temp
-			5.[4] Fan setting
-			6.[6] Cooler setting
-
-*/
-
-void NetGetUpdate(Settings sendSetting, float* currentTemp)
-{
-	// Create update packet
-
-	char outputData[10];
-	memcpy(&outputData[0], currentTemp, 4);
-	memcpy(&outputData[4], &sendSetting.setPoint, 4);
-	outputData[8] = '0' + sendSetting.fanSetting;
-	outputData[9] = '0' + sendSetting.coolerSetting;
-	
-	// Send packet to remote
-	Serial1.write(outputData, sizeof(outputData));
-
-	// if there is an error flush the buffer
-	//Serial1.flush();
-}
-
-void serialEvent1(){
-
-	// Get update
-	Serial.println("Getting update");
-	char inputData[6];
-	if (Serial1.available() >= 6)
-	{
-		Serial1.readBytes(inputData, 6);
-	}
-	memcpy(&currentSetting.setPoint, &inputData[0], 4);
-	currentSetting.fanSetting = inputData[4] - '0';
-	currentSetting.coolerSetting = inputData[5] - '0';
-
 }

@@ -1,15 +1,11 @@
 #include <Arduino.h>
-#include <LiquidCrystal_I2C.h>
 #include <TeensyThreads.h>
 #include <Keypad.h>
 #include <Chrono.h>
-#include <DallasTemperature.h>
-#include <DHT.h>
 #include <OneWire.h>
-#include <DFRobot_LedDisplayModule.h>
-#include <SD.h>
+// #include <DFRobot_LedDisplayModule.h>
 #include <SPI.h>
-#include "Adafruit_MCP9808.h"
+#include <IRremote.h>
 
 // Custom header files
 #include <Menuclass.h>
@@ -44,6 +40,7 @@ elapsedMillis timerOne;
 	int LastUpdate = 0;
 
 // Keypad setup
+#ifdef FOURxFOUR
 	#define COL_NUM 4
 	#define ROW_NUM 4
 	char keys[COL_NUM][ROW_NUM]{
@@ -56,17 +53,31 @@ elapsedMillis timerOne;
 	byte pinCol[COL_NUM] = {7,6,5,4};
 	Keypad keyInput = Keypad(makeKeymap(keys), pinRow, pinCol, COL_NUM, ROW_NUM);
 
+#elif defined(ONExFOUR)
+	#define ROW_NUM 1
+	#define COL_NUM 4
+	char keypadHex[ROW_NUM][COL_NUM]{
+	{'1','2','3','4'}
+	};
+	byte rowPins[ROW_NUM] = {0};
+	byte colPins[COL_NUM] = {2,1,4,3};
+
+	Keypad keyInput = Keypad(makeKeymap(keypadHex), rowPins, colPins, ROW_NUM, COL_NUM);
+#endif
+
 // Heartbeat LED setup
 	void HeartbeatLed(int _TimeDelay = 500); 
 
 // LCD setup
-#ifdef TESTBED
-	//DFrobot
-	LiquidCrystal_I2C lcd(0x20,16,2);
-#else
-	//raspi
-	LiquidCrystal_I2C lcd(0x27,16,2);
-#endif
+#ifdef LCD_DISPLAY
+
+	#ifdef TESTBED
+		//DFrobot
+		LiquidCrystal_I2C lcd(0x20,16,2);
+	#else
+		//raspi
+		LiquidCrystal_I2C lcd(0x27,16,2);
+	#endif
 
 	void LcdPrint();
 	//Metro lcdUpdate = Metro(UPDATE_DELAY);
@@ -74,7 +85,18 @@ elapsedMillis timerOne;
 	unsigned long lastUpdateLCD;
 	char tempFrameOne[16]{"               "};
 	char tempFrameTwo[16]{"               "};
+#elif defined(OLED_DISPLAY)
 
+	#define SCREEN_WIDTH 128
+	#define SCREEN_HEIGHT 64
+	#define SCREEN_ADDRESS 0x3c
+	#define SCREEN_ADDRESS_TWO 0x3d
+	#define OLED_RESET -1
+
+	Adafruit_SSD1306 tempDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+	Adafruit_SSD1306 controlDisplay(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+#endif
 
 // Backlight
 	void BacklightSet();
@@ -114,9 +136,11 @@ elapsedMillis timerOne;
 	int tempFan = 0;
 
 // Segment display
+#ifdef SEGEMENT_DISPLAY
 	DFRobot_LedDisplayModule SegmentDisplay = DFRobot_LedDisplayModule(Wire, 0x48);
 	void UpdateSegment();
 	Chrono segmentDelay;
+#endif
 
 // Temp char arrays
 	char charTempSet[5];
@@ -129,15 +153,6 @@ elapsedMillis timerOne;
 	void CharCpy(char* _charOneInput, char* _charTwoInput[], int offset);
 	void CharCpy(char* _charOneInput, char _charTwoInput[], int offset);
 	void CharCpy(char* _charOneInput, const char _charTwoInput[], int offset);
-
-// SD Setup
-	#define CHIP_SELECT 254
-	//File log;
-	void SDLog(char data[]);
-	bool SDAvailable = false;
-	int temp_fanSet;
-	int temp_coolSet;
-	int temp_coolerSetting;
 
 /********************************************************/
 
@@ -212,9 +227,11 @@ void setup(){
 	Serial1.setTimeout(500);
 	delay(500);
 
+#ifdef SEGMENT_DISPLAY
 	SegmentDisplay.begin4();
 	SegmentDisplay.setDisplayArea4(1,2,3,4);
 	SegmentDisplay.print4("C","O","O","L");
+#endif
 
 	#if defined(TESTBED)
 	#elif defined(DS18B20)
@@ -241,8 +258,11 @@ void setup(){
 	// Init threads
 	threads.addThread(HeartbeatLed,500);
 	// threads.addThread(TempController);
-	threads.addThread(BacklightSet);
 	threads.addThread(UpdateCurrentTemp);
+
+#ifdef LCD_DISPLAY
+	threads.addThread(BacklightSet);
+#endif
 
 	// Fill in the menu
 	
@@ -256,37 +276,26 @@ void setup(){
 	strcpy(menu[2].Linetwo, "Current         ");
 	
 	// Start the LCD
+#ifdef LCD_DISPLAY
 	lcd.init();
 	lcd.backlight();
 
-	// Setup SD logging
-	if (!SD.begin(BUILTIN_SDCARD))
-	{
-		Serial.println("Could not initialise SD card");
-	}
-	else
-	{
-		SDAvailable = true;
-		Serial.println("SD card initialised");
-		SDLog("****************************************");
-		SDLog("Starting new Log");
-	}
-	
 	// Show the start menu
 	LcdPrint();
 	delay(START_MENU);
 	menuIndex = 1;
+#endif
 }
 
 /*************************************************************************************************************************/
 void loop()
 {
 	// Get local inputs from the keypad
-	char keyinput = keyInput.getKey();
-	if (keyinput)
+	char keyInputChar = keyInput.getKey();
+	if (keyInputChar)
 	{
-		Serial.println(keyinput);
-		switch (keyinput)
+		Serial.println(keyInputChar);
+		switch (keyInputChar)
 		{
 			case '2':
 				menuIndex++;
@@ -415,11 +424,15 @@ void loop()
 	
 	// UpdateCurrentTemp();
 
+#ifdef SEGMENT_DISPLAY
 	// Update current temp - 7 segment display
 	SegmentDisplay.print4(Global_TempCurrent);
+#endif
 
+#ifdef LCD_DISPLAY
 	// Print LCD screen (no flashing)
 	LcdPrint();
+#endif
 }
 
 /*************************************************************************************************************************/
@@ -435,38 +448,63 @@ void HeartbeatLed(int _timeDelay)
 	}    
 }
 
-void LcdPrint()
-{
-	char _lineOneIn[16];
-	char _lineTwoIn[16];
-	strcpy(_lineOneIn, menu[menuIndex].Lineone);
-	strcpy(_lineTwoIn, menu[menuIndex].Linetwo);
+#ifdef LCD_DISPLAY
+	void LcdPrint()
+	{
+		char _lineOneIn[16];
+		char _lineTwoIn[16];
+		strcpy(_lineOneIn, menu[menuIndex].Lineone);
+		strcpy(_lineTwoIn, menu[menuIndex].Linetwo);
 
-	if(lcdUpdate.hasPassed(LCD_UPDATE_DELAY) == 1){
+		if(lcdUpdate.hasPassed(LCD_UPDATE_DELAY) == 1){
 
-		lcdUpdate.restart(); 
+			lcdUpdate.restart(); 
 
-		for (unsigned int i = 0; i < sizeof(tempFrameOne) ; i++)
-		{
-			if (tempFrameOne[i] != _lineOneIn[i])
+			for (unsigned int i = 0; i < sizeof(tempFrameOne) ; i++)
 			{
-				tempFrameOne[i] = _lineOneIn[i];
-				lcd.setCursor(i,0);
-				lcd.print(tempFrameOne[i]);
+				if (tempFrameOne[i] != _lineOneIn[i])
+				{
+					tempFrameOne[i] = _lineOneIn[i];
+					lcd.setCursor(i,0);
+					lcd.print(tempFrameOne[i]);
+				}
 			}
-		}
 
-		for (unsigned int i = 0; i < sizeof(tempFrameTwo) ; i++)
-		{
-			if (tempFrameTwo[i] != _lineTwoIn[i])
+			for (unsigned int i = 0; i < sizeof(tempFrameTwo) ; i++)
 			{
-				tempFrameTwo[i] = _lineTwoIn[i];
-				lcd.setCursor(i,1);
-				lcd.print(tempFrameTwo[i]);
+				if (tempFrameTwo[i] != _lineTwoIn[i])
+				{
+					tempFrameTwo[i] = _lineTwoIn[i];
+					lcd.setCursor(i,1);
+					lcd.print(tempFrameTwo[i]);
+				}
 			}
 		}
 	}
-}
+#elif defined(OLED_DISPLAY)
+
+	void OLEDPrint()
+	{
+
+		tempDisplay.setTextSize(2);
+		tempDisplay.setTextColor(SSD1306_WHITE);
+		tempDisplay.setCursor(0,0);
+		tempDisplay.printf("  Temp C\n");
+		tempDisplay.setTextSize(3);
+		tempDisplay.printf("C:%.2f\n", 22.25);
+		tempDisplay.printf("S:%.2f\n", 21.5);
+
+		
+		controlDisplay.setTextSize(2);
+		controlDisplay.setTextColor(WHITE);
+		controlDisplay.setCursor(0,0);
+		controlDisplay.printf("Settings\n");
+		controlDisplay.printf("Fan: FAN%i\n", 1);
+		controlDisplay.printf("Cool:%s\n", "Auto");
+		controlDisplay.printf("Cool:%s", "ON");
+	}
+
+#endif
 
 // Insert a string into a char array
 
@@ -494,7 +532,7 @@ void CharCpy(char* _charOneInput, const char _charTwoInput[], int offset)
 	}
 }
 
-
+#ifdef SEGMENT_DISPLAY
 // Update the seven segment display
 void UpdateSegment()
 {
@@ -504,7 +542,9 @@ void UpdateSegment()
 		segmentDelay.restart();
 	}
 }
+#endif
 
+#ifdef LCD_DISPLAY
 // Turn the backlight off when the timer has expired
 void BacklightSet()
 {
@@ -520,6 +560,7 @@ void BacklightSet()
 		}
 	}
 }
+#endif
 
 // Read the current temperature
 void UpdateCurrentTemp()
@@ -608,14 +649,12 @@ void PowerController(int _fanSet, int _coolSet)
 		temp[6] = '0' + _fanSet;
 		temp[18] = '0' + _coolSet;
 		Serial.println(temp);
-		SDLog(temp);
 	}
 	
 	// Controls fan and cooler
 	if (_coolSet != tempCool)
 	{
 		tempCool = _coolSet;
-		SDLog("cooler change");
 		if (_coolSet > DEVICE_OFF)
 		{
 			if (_fanSet < FAN_LOW)
@@ -624,12 +663,10 @@ void PowerController(int _fanSet, int _coolSet)
 				currentSetting.fanSetting = FAN_LOW;
 			}
 			digitalWrite(COOLER_PIN, HIGH);
-			SDLog("Cooler on");
 		}
 		else
 		{
 			digitalWrite(COOLER_PIN, LOW);
-			SDLog("Cooler off");
 		}
 	}
 	
@@ -637,7 +674,6 @@ void PowerController(int _fanSet, int _coolSet)
 	if (_fanSet != tempFan)
 	{
 		tempFan = _fanSet;
-		SDLog("fan change");
 		switch (_fanSet)
 		{
 		case DEVICE_OFF:
@@ -645,47 +681,29 @@ void PowerController(int _fanSet, int _coolSet)
 			digitalWrite(FAN_MEDIUM_PIN, LOW);
 			digitalWrite(FAN_HIGH_PIN, LOW);
 			digitalWrite(COOLER_PIN, LOW);
-			SDLog("Fan off");
 			break;
 
 		case FAN_LOW:
 			digitalWrite(FAN_LOW_PIN, HIGH);
 			digitalWrite(FAN_MEDIUM_PIN, LOW);
 			digitalWrite(FAN_HIGH_PIN, LOW);
-			SDLog("Fan low");
 			break;
 		
 		case FAN_MEDIUM:
 			digitalWrite(FAN_LOW_PIN, LOW);
 			digitalWrite(FAN_MEDIUM_PIN, HIGH);
 			digitalWrite(FAN_HIGH_PIN, LOW);
-			SDLog("Fan mid");
 			break;
 			
 		case FAN_HIGH:
 			digitalWrite(FAN_LOW_PIN, LOW);
 			digitalWrite(FAN_MEDIUM_PIN, LOW);
 			digitalWrite(FAN_HIGH_PIN, HIGH);
-			SDLog("Fan high");
 			break;
 
 		default:
 			break;
 		}
-	}
-	
-}
-
-void SDLog(char data[])
-{
-	if (SDAvailable)
-	{
-		File log = SD.open("logFile.txt", FILE_WRITE);
-		log.print("Time: ");
-		log.print(millis());
-		log.print(" - ");
-		log.println(data);
-		log.close();
 	}
 	
 }
@@ -746,7 +764,6 @@ void serialEvent1(){
 	{
 		Serial1.readBytes(inputData, 6);
 	}
-	SDLog(inputData);
 	memcpy(&currentSetting.setPoint, &inputData[0], 4);
 	currentSetting.fanSetting = inputData[4] - '0';
 	currentSetting.coolerSetting = inputData[5] - '0';

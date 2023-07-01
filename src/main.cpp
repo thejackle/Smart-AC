@@ -1,8 +1,6 @@
 #include <Arduino.h>
 #include <TeensyThreads.h>
-#include <Keypad.h>
 #include <Chrono.h>
-#include <IRremote.h>
 
 // Custom header files
 #include <Pins.h>
@@ -65,6 +63,7 @@
 	// Delay after cooler has turned off to prevent the cooler from rapidly turning on and off
 	Chrono coolerOffTimer;
 	bool delayReset = false;
+	int previousCoolerSetting;
 
 // Power controls
 	void PowerController(int _FanSet, int _CoolSet);
@@ -80,7 +79,7 @@
 	int menuIndex = 1;
 
 	#define SETTING_LIST 4
-	int settingsValues[SETTING_LIST] = {-2, 0, 0, -2};
+	int settingsValues[SETTING_LIST] = {-2, 0, 0, 0};
 	char coolerStrings[3][5] = {"Off", "Auto", "On"};
 	#define OFFSET_SETTING 0
 	#define FAN_SETTING 1
@@ -223,6 +222,26 @@ void loop()
 		settingsValues[COOL_SETTING] = DEVICE_OFF;
 	}
 
+	// Adjust the set point
+	if (settingsValues[SET_POINT] > 0)
+	{
+		for (int i = settingsValues[SET_POINT]; i > 0; i--)
+		{
+			setTemperature += 0.5;
+		}
+		settingsValues[SET_POINT] = 0;
+	}
+	else if (settingsValues[SET_POINT] < 0)
+	{
+		for (int i = settingsValues[SET_POINT]; i < 0; i++)
+		{
+			setTemperature -= 0.5;
+		}
+		settingsValues[SET_POINT] = 0;
+	}
+	
+	
+
 	// Auto temperature control loop
 	if (settingsValues[COOL_SETTING] == COOLER_AUTO)
 	{
@@ -238,6 +257,7 @@ void loop()
 	{
 		PowerController(settingsValues[FAN_SETTING], DEVICE_OFF);
 	}
+	previousCoolerSetting = settingsValues[COOL_SETTING];
 
 	// Update the screens
 #ifdef OLED_DISPLAY
@@ -373,7 +393,7 @@ void HeartbeatLed(int _timeDelay)
 
 		controlDisplay.printf("%cFan: FAN%i\n", selectIcon[menuIndex][FAN_SETTING], settingsValues[FAN_SETTING]);
 		controlDisplay.printf("%cCool:%s\n", selectIcon[menuIndex][COOL_SETTING], coolerStrings[settingsValues[COOL_SETTING]]);
-		controlDisplay.printf("%cSet Point", selectIcon[menuIndex][SET_POINT]);
+		controlDisplay.printf("%cTemp -/+", selectIcon[menuIndex][SET_POINT]);
 
 		// Invert the title for settings
 		for (int y = 0; y <= 15; y++)
@@ -427,7 +447,7 @@ void AutoCooler()
 		settingsValues[FAN_SETTING] = FAN_LOW;
 	}
 
-	if (globalTemperature > setTemperature && coolerOffTimer.hasPassed(COOLER_DELAY_TIME))
+	if (globalTemperature > setTemperature && (coolerOffTimer.hasPassed(COOLER_DELAY_TIME) || previousCoolerSetting != COOLER_AUTO))
 	{
 		// Turn on
 		PowerController(settingsValues[FAN_SETTING], COOLER_AUTO);

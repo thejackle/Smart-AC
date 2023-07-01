@@ -64,7 +64,7 @@
 	void AutoCooler();
 	// Delay after cooler has turned off to prevent the cooler from rapidly turning on and off
 	Chrono coolerOffTimer;
-	bool Delay_reset = false;
+	bool delayReset = false;
 
 // Power controls
 	void PowerController(int _FanSet, int _CoolSet);
@@ -421,15 +421,15 @@ void AutoCooler()
 	{
 		// Turn on
 		PowerController(settingsValues[FAN_SETTING], COOLER_AUTO);
-		Delay_reset = false;
+		delayReset = false;
 		coolerOffTimer.stop();
 	}
-	else if (globalTemperature < setTemperature && !Delay_reset)
+	else if (globalTemperature < setTemperature && !delayReset)
 	{
 		// Turn off
 		PowerController(settingsValues[FAN_SETTING], DEVICE_OFF);
 		coolerOffTimer.restart();
-		Delay_reset = true;
+		delayReset = true;
 	}
 }
 

@@ -24,7 +24,7 @@
 	void ProcessCommand(uint16_t cmd);
 	uint16_t previousCommand;
 	unsigned long lastDebounceTime = 0;
-	unsigned long debounceDelay = 200;
+	unsigned long debounceDelay = 500;
 #endif
 
 // Heartbeat LED setup
@@ -320,7 +320,8 @@ void loop()
 			case BTN_START_STOP:
 				Serial.println(("Start/Stop button received"));
 				Serial.printf("Resetting values\n");
-				menuIndex = 0;
+				menuIndex = 1;
+				float setTemperature = 22.00;
 				settingsValues[FAN_SETTING] = DEVICE_OFF;
 				settingsValues[COOL_SETTING] = DEVICE_OFF;
 				settingsValues[OFFSET_SETTING] = -2;

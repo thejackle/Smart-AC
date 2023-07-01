@@ -13,3 +13,4 @@
 
 #define BTN_START_STOP 72
 #define BTN_2_SEC 55
+#define BTN_SHUTTER 45

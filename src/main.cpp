@@ -77,19 +77,21 @@
 /********************************************************/
 
 // Menu Setup
-	int menuIndex = 0;
+	int menuIndex = 1;
 
-	#define SETTING_LIST 3
-	int settingsValues[SETTING_LIST] = {0, 0, -2};
+	#define SETTING_LIST 4
+	int settingsValues[SETTING_LIST] = {-2, 0, 0, -2};
 	char coolerStrings[3][5] = {"Off", "Auto", "On"};
-	#define FAN_SETTING 0
-	#define COOL_SETTING 1
-	#define OFFSET_SETTING 2
+	#define OFFSET_SETTING 0
+	#define FAN_SETTING 1
+	#define COOL_SETTING 2
+	#define SET_POINT 3
 
-	char selectIcon[3][4] = {
-	">  ",
-	" > ",
-	"  >"
+	char selectIcon[4][5] = {
+	">   ",
+	" >  ",
+	"  > ",
+	"   >"
 	};
 
 	void IncrementMenu();
@@ -261,28 +263,22 @@ void loop()
 		
 			case BTN_UP:
 				IncrementMenu();
-				Serial.println(("Up button received"));
-				Serial.printf("Menu index:%i\n", menuIndex);
 			break;
 			
 			case BTN_DOWN:
 				DecrementMenu();
-				Serial.println(("Down button received"));
-				Serial.printf("Menu index:%i\n", menuIndex);
 			break;
 			
 			case BTN_LEFT:
 				settingsValues[menuIndex]--;
-				Serial.println(("Left button received"));
 			break;
 			
 			case BTN_RIGHT:
 				settingsValues[menuIndex]++;
-				Serial.println(("Right button received"));
 			break;
 
+			// Increase the set point
 			case BTN_ZOOM_UP:
-				Serial.println(("Zoom up button received"));
 				setTemperature += 0.5;
 				if (setTemperature > UPPER_SET_LIMIT)
 				{
@@ -291,8 +287,8 @@ void loop()
 				
 			break;
 
+			// Decrease the set point
 			case BTN_ZOOM_DOWN:
-				Serial.println(("Zoom down button received"));
 				setTemperature -= 0.5;
 				if (setTemperature < LOWER_SET_LIMIT)
 				{
@@ -300,6 +296,7 @@ void loop()
 				}
 			break;
 
+			// Turn off everything
 			case BTN_START_STOP:
 				Serial.println(("Start/Stop button received"));
 				Serial.printf("Resetting values\n");
@@ -309,12 +306,17 @@ void loop()
 				settingsValues[OFFSET_SETTING] = -2;
 			break;
 			
+			// Set to high
 			case BTN_2_SEC:
-				Serial.println(("2 second button"));
-				Serial.printf("Setting high\n");
-				menuIndex = 0;
+				Serial.printf("Setting to high\n");
 				settingsValues[FAN_SETTING] = FAN_HIGH;
 				settingsValues[COOL_SETTING] = COOLER_ON;
+			break;
+			
+			// Set to auto
+			case BTN_SHUTTER:
+				Serial.printf("Setting to auto\n");
+				settingsValues[COOL_SETTING] = COOLER_AUTO;
 			break;
 
 			default:
@@ -360,10 +362,18 @@ void HeartbeatLed(int _timeDelay)
 		controlDisplay.setTextColor(SSD1306_WHITE);
 		controlDisplay.setCursor(0,0);
 
-		controlDisplay.printf(" Settings\n");
+		if (menuIndex == OFFSET_SETTING)
+		{
+			controlDisplay.printf("%cOffset:%i\n", selectIcon[menuIndex][OFFSET_SETTING], settingsValues[OFFSET_SETTING]);
+		}
+		else
+		{
+			controlDisplay.printf(" Settings\n");
+		}
+
 		controlDisplay.printf("%cFan: FAN%i\n", selectIcon[menuIndex][FAN_SETTING], settingsValues[FAN_SETTING]);
 		controlDisplay.printf("%cCool:%s\n", selectIcon[menuIndex][COOL_SETTING], coolerStrings[settingsValues[COOL_SETTING]]);
-		controlDisplay.printf("%cOffset:%i", selectIcon[menuIndex][OFFSET_SETTING], settingsValues[OFFSET_SETTING]);
+		controlDisplay.printf("%cSet Point", selectIcon[menuIndex][SET_POINT]);
 
 		// Invert the title for settings
 		for (int y = 0; y <= 15; y++)
@@ -528,6 +538,6 @@ void DecrementMenu(){
 	menuIndex++;
 	if (menuIndex >= SETTING_LIST)
 	{
-		menuIndex = 0;
+		menuIndex = 1;
 	}
 }

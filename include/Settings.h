@@ -7,6 +7,10 @@
 // Keypad setup
     #define KEYPAD_1X4
 
+    #ifdef KEYPAD_1X4
+        #include <Keypad.h>
+    #endif
+
 // Heartbeat LED setup
 
 // Display setup
@@ -46,6 +50,7 @@
     #define IR_REMOTE
 
     #ifdef IR_REMOTE
+        #include <IRremote.h>
         #include <IR Commands.h>
     #endif
 
